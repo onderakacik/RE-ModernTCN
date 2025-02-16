@@ -1,0 +1,15 @@
+*.zip
+*.out
+*.arff
+*.ts
+*.JPG
+*.jpg
+# *.txt
+*.pth
+*.pyc
+*.pdf
+*.csv
+*.npz
+*.csv
+*.npy
+.DS_Store
