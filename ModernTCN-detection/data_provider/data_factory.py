@@ -25,7 +25,8 @@ def data_provider(args, flag):
 
     if flag == 'test':
         shuffle_flag = False
-        drop_last = True
+        # drop_last = True # This might effect the result so we set it to False
+        drop_last = False
         if args.task_name == 'anomaly_detection' or args.task_name == 'classification':
             batch_size = args.batch_size
         else:
@@ -33,7 +34,7 @@ def data_provider(args, flag):
         freq = args.freq
     else:
         shuffle_flag = True
-        drop_last = True
+        drop_last = True # This would not effect the reported results as it's not for the test set
         batch_size = args.batch_size  # bsz for train and valid
         freq = args.freq
 
@@ -89,4 +90,6 @@ def data_provider(args, flag):
             shuffle=shuffle_flag,
             num_workers=args.num_workers,
             drop_last=drop_last)
+
+        print(f"drop_last_bug after: {flag} {drop_last}")
         return data_set, data_loader

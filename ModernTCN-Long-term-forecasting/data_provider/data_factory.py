@@ -16,7 +16,8 @@ def data_provider(args, flag):
 
     if flag == 'test':
         shuffle_flag = False
-        drop_last = True
+        # drop_last = True # This might effect the result so we set it to False
+        drop_last = False
         batch_size = args.batch_size
         freq = args.freq
     elif flag == 'pred':
@@ -27,7 +28,7 @@ def data_provider(args, flag):
         Data = Dataset_Pred
     else:
         shuffle_flag = True
-        drop_last = True
+        drop_last = True # This would not effect the reported results as it's not for the test set
         batch_size = args.batch_size
         freq = args.freq
 
@@ -48,4 +49,6 @@ def data_provider(args, flag):
         shuffle=shuffle_flag,
         num_workers=args.num_workers,
         drop_last=drop_last)
+
+    print(f"drop_last_bug after: {flag} {drop_last}")
     return data_set, data_loader
