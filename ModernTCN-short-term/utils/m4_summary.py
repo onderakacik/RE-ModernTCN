@@ -26,7 +26,15 @@ import os
 
 
 def group_values(values, groups, group_name):
-    return np.array([v[~np.isnan(v)] for v in values[groups == group_name]])
+    """
+    Extract values for a specific group, handling both numpy arrays and lists
+    """
+    if isinstance(values, list):
+        return [values[i] for i, g in enumerate(groups) if g == group_name]
+    else:
+        # Get indices where groups match group_name
+        indices = np.where(groups == group_name)[0]
+        return [v[~np.isnan(v)] for v in values[indices]]
 
 
 def mase(forecast, insample, outsample, frequency):
@@ -64,7 +72,7 @@ class M4Summary:
         grouped_owa = OrderedDict()
 
         naive2_forecasts = pd.read_csv(self.naive_path).values[:, 1:].astype(np.float32)
-        naive2_forecasts = np.array([v[~np.isnan(v)] for v in naive2_forecasts])
+        naive2_forecasts = [v[~np.isnan(v)] for v in naive2_forecasts]
 
         model_mases = {}
         naive2_smapes = {}
@@ -82,6 +90,12 @@ class M4Summary:
             frequency = self.training_set.frequencies[self.test_set.groups == group_name][0]
             insample = group_values(self.training_set.values, self.test_set.groups, group_name)
 
+            # Convert lists to numpy arrays before metric calculation
+            naive2_forecast = np.array([v for v in naive2_forecast])
+            target = np.array([v for v in target])
+            model_forecast = np.array([v for v in model_forecast])
+
+            # Calculate metrics (now all inputs are numpy arrays)
             model_mases[group_name] = np.mean([mase(forecast=model_forecast[i],
                                                     insample=insample[i],
                                                     outsample=target[i],
