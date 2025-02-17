@@ -1,6 +1,5 @@
 import argparse
 import os
-os.environ["CUDA_VISIBLE_DEVICES"] = "2"
 import torch
 
 from exp.exp_classification import Exp_Classification
