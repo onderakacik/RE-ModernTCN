@@ -4,7 +4,7 @@
 *.ts
 *.JPG
 *.jpg
-# *.txt
+*.txt
 *.pth
 *.pyc
 *.pdf
@@ -13,3 +13,5 @@
 *.csv
 *.npy
 .DS_Store
+*.zip
+*.psv
