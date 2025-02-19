@@ -460,6 +460,7 @@ class Dataset_Custom_(Dataset):
             df_data = df_raw[[self.target]]
 
         ## min max scaler
+        print(f"Min max scaler entered")
         mms = MinMaxScaler(feature_range=(0, 1))
         if self.scale:
             train_data = df_data[border1s[0]:border2s[0]]
@@ -501,6 +502,7 @@ class Dataset_Custom_(Dataset):
         return len(self.data_x) - self.seq_len - self.pred_len + 1
 
     def inverse_transform(self, data):
+        print(f"Inverse transform entered")
         mms = MinMaxScaler(feature_range=(0, 1))
         return mms.fit_transform(data.cpu())
         #return self.scaler.inverse_transform(data)
