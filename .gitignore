@@ -15,3 +15,8 @@
 .DS_Store
 *.zip
 *.psv
+*.wav
+*.pt
+*.job
+/*/all_datasets/*
+/*/results_txt/*

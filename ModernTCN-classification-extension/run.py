@@ -45,6 +45,7 @@ parser.add_argument('--downsample_ratio', type=int, default=2, help='downsample_
 parser.add_argument('--ffn_ratio', type=int, default=2, help='ffn_ratio')
 parser.add_argument('--patch_size', type=int, default=16, help='the patch size')
 parser.add_argument('--patch_stride', type=int, default=8, help='the patch stride')
+parser.add_argument('--use_convffn2', type=str2bool, default=True, help='use ConvFFN2 cross-variable component')
 
 parser.add_argument('--num_blocks', nargs='+',type=int, default=[1,1,1,1], help='num_blocks in each stage')
 parser.add_argument('--large_size', nargs='+',type=int, default=[31,29,27,13], help='big kernel size')
@@ -123,6 +124,14 @@ parser.add_argument('--anomaly_ratio', type=float, default=0.25, help='prior ano
 
 # classfication task
 parser.add_argument('--class_dropout', type=float, default=0.05, help='classfication dropout')
+
+# Add these lines after the classification task arguments
+parser.add_argument('--mfcc', type=str2bool, default=True, 
+                    help='use MFCC features for speech commands (default: True)')
+parser.add_argument('--sr', type=int, default=16000, 
+                    help='sample rate for audio (default: 16000)')
+parser.add_argument('--n_mfcc', type=int, default=20,
+                    help='number of MFCC coefficients (default: 20)')
 
 args = parser.parse_args()
 

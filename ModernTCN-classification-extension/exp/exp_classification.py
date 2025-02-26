@@ -9,7 +9,7 @@ import time
 import warnings
 import numpy as np
 from torch.optim import lr_scheduler
-
+from models.ModernTCN import ReparamLargeKernelConv
 import pdb
 
 warnings.filterwarnings('ignore')
@@ -33,6 +33,18 @@ class Exp_Classification(Exp_Basic):
         self.args.num_class = len(train_data.class_names)
         # model init
         model = self.model_dict[self.args.model].Model(self.args).float()
+
+        # Calculate and print the number of parameters PER LAYER
+        print("Parameter count per layer:")
+        for name, module in model.named_modules():
+            if isinstance(module, (nn.Conv1d, nn.Linear, ReparamLargeKernelConv)): # Add other layer types if needed
+                num_params = sum(p.numel() for p in module.parameters() if p.requires_grad)
+                print(f"\tLayer: {name}, Type: {type(module).__name__}, Parameters: {num_params}")
+
+        # Calculate and print the total number of parameters
+        total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+        print(f"\nTotal number of trainable parameters: {total_params}")
+
         if self.args.use_multi_gpu and self.args.use_gpu:
             model = nn.DataParallel(model, device_ids=self.args.device_ids)
         return model
@@ -94,7 +106,7 @@ class Exp_Classification(Exp_Basic):
         time_now = time.time()
 
         train_steps = len(train_loader)
-        early_stopping = EarlyStopping(patience=self.args.patience, verbose=True)
+        early_stopping = EarlyStopping(patience=self.args.patience, verbose=True, args=self.args)
 
         model_optim = self._select_optimizer()
         criterion = self._select_criterion()
@@ -141,12 +153,20 @@ class Exp_Classification(Exp_Basic):
             vali_loss, val_metrics = self.vali(vali_data, vali_loader, criterion)
             test_loss, test_metrics = self.vali(test_data, test_loader, criterion)
 
-            print(
-                "Epoch: {0}, Steps: {1} | Train Loss: {2:.3f} Vali Loss: {3:.3f} Vali Acc: {4:.3f} Vali ROC AUC: {5:.3f} Test Loss: {6:.3f} Test Acc: {7:.3f} Test ROC AUC: {8:.3f}"
-                .format(epoch + 1, train_steps, train_loss, vali_loss, 
-                       val_metrics['accuracy'], val_metrics['roc_auc'],
-                       test_loss, test_metrics['accuracy'], test_metrics['roc_auc']))
-            early_stopping(-val_metrics['roc_auc'], self.model, path)
+            if self.args.data == 'PhysioNet':
+                print(
+                    "Epoch: {0}, Steps: {1} | Train Loss: {2:.3f} Vali Loss: {3:.3f} Vali Acc: {4:.3f} Vali AUC: {5:.3f} Test Loss: {6:.3f} Test Acc: {7:.3f} Test AUC: {8:.3f}"
+                    .format(epoch + 1, train_steps, train_loss, vali_loss, val_metrics['accuracy'], val_metrics['roc_auc'], 
+                            test_loss, test_metrics['accuracy'], test_metrics['roc_auc']))
+            else:
+                print(
+                    "Epoch: {0}, Steps: {1} | Train Loss: {2:.3f} Vali Loss: {3:.3f} Vali Acc: {4:.3f} Test Loss: {5:.3f} Test Acc: {6:.3f}"
+                    .format(epoch + 1, train_steps, train_loss, vali_loss, val_metrics['accuracy'], 
+                            test_loss, test_metrics['accuracy']))
+            
+            # Pass the appropriate metric based on the task
+            metric_to_track = val_metrics['roc_auc'] if self.args.data == 'PhysioNet' else val_metrics['accuracy']
+            early_stopping(-metric_to_track, self.model, path)
             if early_stopping.early_stop:
                 print("Early stopping")
                 break
@@ -191,15 +211,16 @@ class Exp_Classification(Exp_Basic):
         trues = trues.flatten().cpu().numpy()
         metrics = calculate_metrics(predictions, probs.cpu().numpy(), trues)
 
-        # result save
-        folder_path = './results/' + setting + '/'
-        if not os.path.exists(folder_path):
-            os.makedirs(folder_path)
 
         print('Accuracy: {:.3f}'.format(metrics['accuracy']))
         print('ROC AUC: {:.3f}'.format(metrics['roc_auc']))
         
-        f = open("result_classification.txt", 'a')
+        experiment_name = self.args.des
+        folder_path = './results_txt/'
+        
+        if not os.path.exists(folder_path):
+            os.makedirs(folder_path)
+        f = open(f"results_txt/result_classification_{experiment_name}.txt", 'a')
         f.write(setting + "  \n")
         f.write('Accuracy: {:.3f}\n'.format(metrics['accuracy']))
         f.write('ROC AUC: {:.3f}\n'.format(metrics['roc_auc']))

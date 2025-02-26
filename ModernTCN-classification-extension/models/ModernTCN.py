@@ -123,7 +123,7 @@ class ReparamLargeKernelConv(nn.Module):
             self.__delattr__('small_conv')
 
 class Block(nn.Module):
-    def __init__(self, large_size, small_size, dmodel, dff, nvars, small_kernel_merged=False, drop=0.1):
+    def __init__(self, large_size, small_size, dmodel, dff, nvars, small_kernel_merged=False, drop=0.1, use_convffn2=True):
         super().__init__()
         # print(f"\nBlock init params:")
         # print(f"large_size: {large_size}")
@@ -144,14 +144,16 @@ class Block(nn.Module):
         self.ffn1drop1 = nn.Dropout(drop)
         self.ffn1drop2 = nn.Dropout(drop)
 
-        #convffn2
-        self.ffn2pw1 = nn.Conv1d(in_channels=nvars * dmodel, out_channels=nvars * dff, kernel_size=1, stride=1,
-                                 padding=0, dilation=1, groups=dmodel)
-        self.ffn2act = nn.GELU()
-        self.ffn2pw2 = nn.Conv1d(in_channels=nvars * dff, out_channels=nvars * dmodel, kernel_size=1, stride=1,
-                                 padding=0, dilation=1, groups=dmodel)
-        self.ffn2drop1 = nn.Dropout(drop)
-        self.ffn2drop2 = nn.Dropout(drop)
+        #convffn2 (optional)
+        self.use_convffn2 = use_convffn2
+        if use_convffn2:
+            self.ffn2pw1 = nn.Conv1d(in_channels=nvars * dmodel, out_channels=nvars * dff, kernel_size=1, stride=1,
+                                     padding=0, dilation=1, groups=dmodel)
+            self.ffn2act = nn.GELU()
+            self.ffn2pw2 = nn.Conv1d(in_channels=nvars * dff, out_channels=nvars * dmodel, kernel_size=1, stride=1,
+                                     padding=0, dilation=1, groups=dmodel)
+            self.ffn2drop1 = nn.Dropout(drop)
+            self.ffn2drop2 = nn.Dropout(drop)
 
         self.ffn_ratio = dff//dmodel
     def forward(self,x):
@@ -171,13 +173,14 @@ class Block(nn.Module):
         x = self.ffn1drop2(self.ffn1pw2(x))
         x = x.reshape(B, M, D, N)
 
-        x = x.permute(0, 2, 1, 3)
-        x = x.reshape(B, D * M, N)
-        x = self.ffn2drop1(self.ffn2pw1(x))
-        x = self.ffn2act(x)
-        x = self.ffn2drop2(self.ffn2pw2(x))
-        x = x.reshape(B, D, M, N)
-        x = x.permute(0, 2, 1, 3)
+        if self.use_convffn2:
+            x = x.permute(0, 2, 1, 3)
+            x = x.reshape(B, D * M, N)
+            x = self.ffn2drop1(self.ffn2pw1(x))
+            x = self.ffn2act(x)
+            x = self.ffn2drop2(self.ffn2pw2(x))
+            x = x.reshape(B, D, M, N)
+            x = x.permute(0, 2, 1, 3)
 
         x = input + x
         return x
@@ -185,13 +188,13 @@ class Block(nn.Module):
 
 class Stage(nn.Module):
     def __init__(self, ffn_ratio, num_blocks, large_size, small_size, dmodel, dw_model, nvars,
-                 small_kernel_merged=False, drop=0.1):
+                 small_kernel_merged=False, drop=0.1, use_convffn2=True):
 
         super(Stage, self).__init__()
         d_ffn = dmodel * ffn_ratio
         blks = []
         for i in range(num_blocks):
-            blk = Block(large_size=large_size, small_size=small_size, dmodel=dmodel, dff=d_ffn, nvars=nvars, small_kernel_merged=small_kernel_merged, drop=drop)
+            blk = Block(large_size=large_size, small_size=small_size, dmodel=dmodel, dff=d_ffn, nvars=nvars, small_kernel_merged=small_kernel_merged, drop=drop, use_convffn2=use_convffn2)
             blks.append(blk)
 
         self.blocks = nn.ModuleList(blks)
@@ -206,7 +209,7 @@ class Stage(nn.Module):
 
 class ModernTCN(nn.Module):
     def __init__(self, task_name, patch_size, patch_stride, stem_ratio, downsample_ratio, ffn_ratio, num_blocks, large_size, small_size, dims, dw_dims,
-                 nvars, small_kernel_merged=False, backbone_dropout=0.1, head_dropout=0.1, use_multi_scale=True, revin=True, affine=True,
+                 nvars, small_kernel_merged=False, backbone_dropout=0.1, head_dropout=0.1, use_multi_scale=True, use_convffn2=True, revin=True, affine=True,
                  subtract_last=False, freq=None, seq_len=512, c_in=7, individual=False, target_window=96, class_drop=0.,class_num = 10):
 
         super().__init__()
@@ -253,7 +256,7 @@ class ModernTCN(nn.Module):
         self.stages = nn.ModuleList()
         for stage_idx in range(self.num_stage):
             layer = Stage(ffn_ratio, num_blocks[stage_idx], large_size[stage_idx], small_size[stage_idx], dmodel=dims[stage_idx],
-                          dw_model=dw_dims[stage_idx], nvars=nvars, small_kernel_merged=small_kernel_merged, drop=backbone_dropout)
+                          dw_model=dw_dims[stage_idx], nvars=nvars, small_kernel_merged=small_kernel_merged, drop=backbone_dropout, use_convffn2=use_convffn2)
             self.stages.append(layer)
 
 
@@ -382,7 +385,8 @@ class Model(nn.Module):
                            large_size=self.large_size, small_size=self.small_size, dims=self.dims, dw_dims=self.dw_dims,
                            nvars=self.nvars, small_kernel_merged=self.small_kernel_merged,
                            backbone_dropout=self.drop_backbone, head_dropout=self.drop_head,
-                           use_multi_scale=self.use_multi_scale, revin=self.revin, affine=self.affine,
+                           use_multi_scale=self.use_multi_scale, use_convffn2=configs.use_convffn2,
+                           revin=self.revin, affine=self.affine,
                            subtract_last=self.subtract_last, freq=self.freq, seq_len=self.seq_len, c_in=self.c_in,
                            individual=self.individual, target_window=self.target_window,
                             class_drop = self.class_dropout, class_num = self.class_num)

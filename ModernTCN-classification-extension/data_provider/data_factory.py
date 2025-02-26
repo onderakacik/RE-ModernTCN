@@ -1,5 +1,5 @@
 from data_provider.data_loader import Dataset_ETT_hour, Dataset_ETT_minute, Dataset_Custom, Dataset_M4, PSMSegLoader, \
-    MSLSegLoader, SMAPSegLoader, SMDSegLoader, SWATSegLoader, UEAloader, PhysioNetLoader
+    MSLSegLoader, SMAPSegLoader, SMDSegLoader, SWATSegLoader, UEAloader, PhysioNetLoader, SpeechCommandsLoader
 from data_provider.uea import collate_fn
 from torch.utils.data import DataLoader
 import torch
@@ -17,7 +17,8 @@ data_dict = {
     'SMD': SMDSegLoader,
     'SWAT': SWATSegLoader,
     'UEA': UEAloader,
-    'PhysioNet': PhysioNetLoader
+    'PhysioNet': PhysioNetLoader,
+    'SpeechCommands': SpeechCommandsLoader
 }
 
 
@@ -33,6 +34,21 @@ def physionet_collate_fn(data, max_len=None):
     # Transpose features to [batch_size, 75, 72] if needed
     features = features.permute(0, 2, 1)  # Change to [batch_size, seq_len, features]
     
+    return features, labels, masks
+
+
+def speech_commands_collate_fn(data, max_len=None):
+    features, labels, masks = zip(*data)
+    
+    # Convert to tensor and stack
+    features = torch.stack(features)  # Shape: [batch_size, features, seq_len]
+    labels = torch.stack(labels)
+    masks = torch.stack(masks)
+    
+    # Transpose to match PhysioNet format: [batch_size, seq_len, features]
+    features = features.permute(0, 2, 1)
+    
+    # print("Final features shape:", features.shape)
     return features, labels, masks
 
 
@@ -79,6 +95,8 @@ def data_provider(args, flag):
 
         if args.data == 'PhysioNet':
             collate = physionet_collate_fn
+        elif args.data == 'SpeechCommands':
+            collate = speech_commands_collate_fn
         else:
             collate = collate_fn
 

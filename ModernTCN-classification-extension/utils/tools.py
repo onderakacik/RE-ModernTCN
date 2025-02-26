@@ -45,35 +45,39 @@ def adjust_learning_rate(optimizer, scheduler, epoch, args, printout=True):
 
 
 class EarlyStopping:
-    def __init__(self, patience=7, verbose=False, delta=0):
+    def __init__(self, patience=7, verbose=False, delta=0, args=None):
         self.patience = patience
         self.verbose = verbose
         self.counter = 0
         self.best_score = None
         self.early_stop = False
-        self.val_loss_min = np.Inf
+        self.val_metric_min = np.Inf
         self.delta = delta
+        # Set metric name based on data argument
+        self.metric_name = 'AUC' if args and args.data == 'PhysioNet' else 'accuracy'
+        self.is_auc = args and args.data == 'PhysioNet'
 
-    def __call__(self, val_loss, model, path):
-        score = -val_loss
+    def __call__(self, val_metric, model, path):
+        score = -val_metric  # We negate because we're tracking -metric for minimization
+        
         if self.best_score is None:
             self.best_score = score
-            self.save_checkpoint(val_loss, model, path)
-        elif score < self.best_score + self.delta:
+            self.save_checkpoint(val_metric, model, path)
+        elif score < self.best_score + self.delta:  # Score improved (got smaller)
             self.counter += 1
             print(f'EarlyStopping counter: {self.counter} out of {self.patience}')
             if self.counter >= self.patience:
                 self.early_stop = True
-        else:
+        else:  # Score got larger (worse)
             self.best_score = score
-            self.save_checkpoint(val_loss, model, path)
+            self.save_checkpoint(val_metric, model, path)
             self.counter = 0
 
-    def save_checkpoint(self, val_loss, model, path):
+    def save_checkpoint(self, val_metric, model, path):
         if self.verbose:
-            print(f'Validation loss decreased ({self.val_loss_min:.6f} --> {val_loss:.6f}).  Saving model ...')
+            print(f'Validation {self.metric_name} decreased ({self.val_metric_min:.6f} --> {val_metric:.6f}). Saving model ...')
         torch.save(model.state_dict(), path + '/' + 'checkpoint.pth')
-        self.val_loss_min = val_loss
+        self.val_metric_min = val_metric
 
 
 class dotdict(dict):

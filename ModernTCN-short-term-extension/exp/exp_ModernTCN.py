@@ -309,13 +309,14 @@ class Exp_Main(Exp_Basic):
         inputx = inputx.reshape(-1, inputx.shape[-2], inputx.shape[-1])
 
         # result save
-        folder_path = './results/' + setting + '/'
+        folder_path = './results_txt/'
         if not os.path.exists(folder_path):
             os.makedirs(folder_path)
 
         mae, mse, rmse, mape, mspe, rse, corr = metric(preds, trues)
         print('mse:{}, mae:{}, rse:{}'.format(mse, mae, rse))
-        f = open("result.txt", 'a')
+        result_file = f"result_classification_{self.args.des}.txt"
+        f = open(os.path.join(folder_path, result_file), 'a')
         f.write(setting + "  \n")
         f.write('mse:{}, mae:{}, rse:{}'.format(mse, mae, rse))
         f.write('\n')

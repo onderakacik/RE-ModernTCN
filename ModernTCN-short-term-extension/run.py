@@ -3,7 +3,6 @@ import os
 
 import torch
 from exp.exp_ModernTCN import Exp_Main
-from exp.exp_FreTS import Exp_FreTS
 import random
 import numpy as np
 from utils.str2bool import str2bool
@@ -58,23 +57,6 @@ parser.add_argument('--small_kernel_merged', type=str2bool, default=False, help=
 parser.add_argument('--call_structural_reparam', type=bool, default=False, help='structural_reparam after training')
 parser.add_argument('--use_multi_scale', type=str2bool, default=True, help='use_multi_scale fusion')
 
-# FreTS
-parser.add_argument('--channel_independence', type=int, default=0, help='Channel independence')
-parser.add_argument('--train_only', type=bool, default=False, help='perform training on full input dataset without validation and testing')
-parser.add_argument('--distil', action='store_true', help='Use distillation')
-# parser.add_argument('--moving_avg', type=int, default=25, help='Moving average window size')
-# parser.add_argument('--factor', type=int, default=1, help='Factor for attention')
-# parser.add_argument('--embed', type=str, default='timeF', help='Embedding type')
-# parser.add_argument('--activation', type=str, default='gelu', help='Activation function')
-# parser.add_argument('--num_workers', type=int, default=0, help='Number of workers for data loading')
-# parser.add_argument('--itr', type=int, default=5, help='Number of iterations')
-# parser.add_argument('--train_epochs', type=int, default=20, help='Number of training epochs')
-# parser.add_argument('--batch_size', type=int, default=8, help='Batch size')
-# parser.add_argument('--patience', type=int, default=3, help='Patience for early stopping')
-# parser.add_argument('--learning_rate', type=float, default=0.0001, help='Learning rate')
-# parser.add_argument('--des', type=str, default='Exp', help='Description')
-# parser.add_argument('--loss', type=str, default='mse', help='Loss function')
-# parser.add_argument('--lradj', type=str, default='type1', help='Learning rate adjustment type')
 
 # PatchTST
 parser.add_argument('--fc_dropout', type=float, default=0.05, help='fully connected dropout')
@@ -101,9 +83,9 @@ parser.add_argument('--d_layers', type=int, default=1, help='num of decoder laye
 parser.add_argument('--d_ff', type=int, default=2048, help='dimension of fcn')
 parser.add_argument('--moving_avg', type=int, default=25, help='window size of moving average')
 parser.add_argument('--factor', type=int, default=1, help='attn factor')
-# parser.add_argument('--distil', action='store_false',
-#                     help='whether to use distilling in encoder, using this argument means not using distilling',
-#                     default=True)
+parser.add_argument('--distil', action='store_false',
+                    help='whether to use distilling in encoder, using this argument means not using distilling',
+                    default=True)
 parser.add_argument('--dropout', type=float, default=0.05, help='dropout')
 
 parser.add_argument('--activation', type=str, default='gelu', help='activation')
@@ -153,8 +135,7 @@ print('Args in experiment:')
 print(args)
 if __name__ == '__main__':
 
-    # Exp = Exp_Main
-    Exp = Exp_Main if args.model == 'ModernTCN' else Exp_FreTS
+    Exp = Exp_Main
 
     if args.is_training:
         for ii in range(args.itr):

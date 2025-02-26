@@ -15,6 +15,7 @@ import pathlib
 import csv
 import math
 from data_provider.utils import normalise_data, split_data, load_data, save_data
+import torchaudio
 
 warnings.filterwarnings('ignore')
 
@@ -874,7 +875,127 @@ class PhysioNetLoader(Dataset):
     @staticmethod
     def load_data(data_loc, flag):
         tensors = load_data(data_loc)
-        flag = flag.lower()  # Convert to lowercase to match our saved data
+        flag = flag.lower()  # Convert flag to lowercase
+        if flag in [ 'train']:
+            X = tensors["train_X"]
+            y = tensors["train_y"]
+        elif flag in ['val', 'valid', 'vali']:
+            X = tensors["val_X"]
+            y = tensors["val_y"]
+        elif flag in [ 'test']:
+            X = tensors["test_X"]
+            y = tensors["test_y"]
+        else:
+            raise NotImplementedError(f"the flag {flag} is not implemented.")
+        
+        return X, y
+
+    def __getitem__(self, index):
+        x = self.data[index]      # Shape: (features, seq_len)
+        y = self.targets[index]   # Shape: (1,) - binary label (0 or 1)
+        padding_mask = torch.ones(x.shape[1])  # Shape: (seq_len,) - all 1s since we pad/truncate to 72 hours
+        return x, y, padding_mask
+
+    def __len__(self):
+        return len(self.data)
+
+
+class SpeechCommandsLoader(Dataset):
+    def __init__(self, root_path, flag='train', **kwargs):
+        self.root = pathlib.Path(root_path)
+        self.flag = flag
+        self.mfcc = kwargs.get('mfcc', True)  # Default to using MFCC features
+        
+        # Define the command classes
+        self.commands = ['yes', 'no', 'up', 'down', 'left', 'right', 'on', 'off', 'stop', 'go']
+        self.class_names = self.commands
+        
+        data_loc = self.root / "processed_data"
+        
+        if os.path.exists(data_loc):
+            # Load preprocessed data
+            X, y = self.load_data(data_loc, flag)
+        else:
+            # Process and save data
+            train_X, val_X, test_X, train_y, val_y, test_y = self._process_data()
+            if not os.path.exists(data_loc):
+                os.makedirs(data_loc)
+            save_data(
+                data_loc,
+                train_X=train_X,
+                val_X=val_X,
+                test_X=test_X,
+                train_y=train_y,
+                val_y=val_y,
+                test_y=test_y,
+            )
+            # Select appropriate split
+            if flag == 'train':
+                X, y = train_X, train_y
+            elif flag == 'val':
+                X, y = val_X, val_y
+            else:  # test
+                X, y = test_X, test_y
+
+        self.data = X
+        self.targets = y
+        
+        # Set max sequence length
+        self.max_seq_len = 16000 if not self.mfcc else 161
+        
+        # Create feature DataFrame
+        n_features = self.data.shape[1]  # Get number of features
+        feature_names = [f'feature_{i}' for i in range(n_features)]
+        self.feature_df = pd.DataFrame(columns=feature_names)
+
+    def _process_data(self):
+        X = torch.empty(34975, 16000, 1)
+        y = torch.empty(34975, dtype=torch.long)
+
+        batch_index = 0
+        y_index = 0
+        for foldername in self.commands:
+            loc = self.root / foldername
+            for filename in os.listdir(loc):
+                if filename.endswith('.wav'):
+                    audio, _ = torchaudio.load(loc / filename)
+                    
+                    # Ensure 16000 length
+                    if audio.size(1) != 16000:
+                        continue
+                        
+                    # Normalize audio
+                    audio = audio / (2 ** 15)
+                    
+                    X[batch_index] = audio.transpose(0, 1)
+                    y[batch_index] = y_index
+                    batch_index += 1
+            y_index += 1
+
+        # Compute MFCC if needed
+        if self.mfcc:
+            X = torchaudio.transforms.MFCC(
+                sample_rate=16000,
+                n_mfcc=20,
+                melkwargs={'n_fft': 200, 'n_mels': 64}
+            )(X.squeeze(-1)).detach()
+            # Shape becomes (batch, n_mfcc, time)
+        else:
+            X = X.transpose(1, 2)  # Shape becomes (batch, channels, time)
+
+        # Normalize data
+        X = normalise_data(X, y)
+
+        # Split data
+        train_X, val_X, test_X = split_data(X, y)
+        train_y, val_y, test_y = split_data(y, y)
+
+        return train_X, val_X, test_X, train_y, val_y, test_y
+
+    @staticmethod
+    def load_data(data_loc, flag):
+        flag = flag.lower()
+        tensors = load_data(data_loc)
         if flag == 'train':
             X = tensors["train_X"]
             y = tensors["train_y"]
@@ -886,13 +1007,13 @@ class PhysioNetLoader(Dataset):
             y = tensors["test_y"]
         else:
             raise NotImplementedError(f"the flag {flag} is not implemented.")
-
+        
         return X, y
 
     def __getitem__(self, index):
-        x = self.data[index]      # Shape: (features, seq_len)
-        y = self.targets[index]   # Shape: (1,) - binary label (0 or 1)
-        padding_mask = torch.ones(x.shape[1])  # Shape: (seq_len,) - all 1s since we pad/truncate to 72 hours
+        x = self.data[index]  # Shape: (features, seq_len)
+        y = self.targets[index]  # Shape: (1,) - class label
+        padding_mask = torch.ones(x.shape[1])  # Shape: (seq_len,)
         return x, y, padding_mask
 
     def __len__(self):
