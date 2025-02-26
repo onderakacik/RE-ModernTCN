@@ -78,7 +78,7 @@ def data_provider(args, flag):
             win_size=args.seq_len,
             flag=flag,
         )
-        print(flag, len(data_set))
+        print('load anomaly detection data...')
         data_loader = DataLoader(
             data_set,
             batch_size=batch_size,
@@ -87,26 +87,40 @@ def data_provider(args, flag):
             drop_last=drop_last)
         return data_set, data_loader
     elif args.task_name == 'classification':
-        drop_last = False
-        data_set = Data(
-            root_path=args.root_path,
-            flag=flag,
-        )
-
-        if args.data == 'PhysioNet':
-            collate = physionet_collate_fn
-        elif args.data == 'SpeechCommands':
-            collate = speech_commands_collate_fn
+        # For SpeechCommands, explicitly pass mfcc parameter
+        if args.data == 'SpeechCommands':
+            print(f"Creating SpeechCommandsLoader with mfcc={args.mfcc}")
+            data_set = Data(
+                root_path=args.root_path,
+                flag=flag,
+                mfcc=args.mfcc  # Explicitly pass mfcc
+            )
+        # For other datasets like PhysioNet, UEA, etc.
         else:
-            collate = collate_fn
-
+            data_set = Data(
+                root_path=args.root_path,
+                flag=flag,
+            )
+            
+        print('load classification data...')
+        
+        # Use appropriate collate function based on dataset
+        if args.data == 'PhysioNet':
+            collate_function = physionet_collate_fn
+        elif args.data == 'SpeechCommands':
+            collate_function = speech_commands_collate_fn
+        elif args.data == 'UEA':
+            collate_function = collate_fn
+        else:
+            collate_function = None
+        
         data_loader = DataLoader(
             data_set,
             batch_size=batch_size,
             shuffle=shuffle_flag,
             num_workers=args.num_workers,
             drop_last=drop_last,
-            collate_fn=lambda x: collate(x, max_len=args.seq_len)
+            collate_fn=lambda x: collate_function(x, max_len=args.seq_len)
         )
         return data_set, data_loader
     else:

@@ -901,21 +901,27 @@ class PhysioNetLoader(Dataset):
 
 
 class SpeechCommandsLoader(Dataset):
-    def __init__(self, root_path, flag='train', **kwargs):
+    def __init__(self, root_path, flag='train', mfcc=True, **kwargs):
+        # print("***** INSIDE DATALOADER INIT METHOD - CHECKING MFCC *****")
         self.root = pathlib.Path(root_path)
         self.flag = flag
-        self.mfcc = kwargs.get('mfcc', True)  # Default to using MFCC features
+        self.mfcc = mfcc  # Explicit parameter
+        
+        # print(f"MFCC (direct parameter): {self.mfcc}")
         
         # Define the command classes
         self.commands = ['yes', 'no', 'up', 'down', 'left', 'right', 'on', 'off', 'stop', 'go']
         self.class_names = self.commands
         
-        data_loc = self.root / "processed_data"
+        # Use different directories for MFCC and raw audio
+        data_loc = self.root / f"processed_data_{'mfcc' if self.mfcc else 'raw'}"
+        # print(f"Using data directory: {data_loc}")
         
         if os.path.exists(data_loc):
             # Load preprocessed data
             X, y = self.load_data(data_loc, flag)
         else:
+            # print(f"Processing data with MFCC={self.mfcc}")
             # Process and save data
             train_X, val_X, test_X, train_y, val_y, test_y = self._process_data()
             if not os.path.exists(data_loc):
@@ -974,6 +980,7 @@ class SpeechCommandsLoader(Dataset):
 
         # Compute MFCC if needed
         if self.mfcc:
+            print(f"Computing MFCC")
             X = torchaudio.transforms.MFCC(
                 sample_rate=16000,
                 n_mfcc=20,
@@ -981,6 +988,7 @@ class SpeechCommandsLoader(Dataset):
             )(X.squeeze(-1)).detach()
             # Shape becomes (batch, n_mfcc, time)
         else:
+            print(f"Not computing MFCC")
             X = X.transpose(1, 2)  # Shape becomes (batch, channels, time)
 
         # Normalize data
