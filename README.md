@@ -47,7 +47,7 @@ sh ./scripts/ETTh2.sh
 ```
 cd ./ModernTCN-classification-extension
 sh ./scripts/physionet.sh
-sh ./scripts/speech_commands.sh
+sh ./scripts/speech_mfcc.sh
 ```
 
 7. Anomaly detection tasks.
@@ -56,11 +56,20 @@ cd ./ModernTCN-detection
 sh ./scripts/SWaT.sh
 ```
 
-8. ERF Visualization for Speech Commands MFCC.
-```
-cd ./ModernTCN-classification-extension/scripts
-sh erf_mfcc.sh
-```
+8. ERF Visualization for Speech Commands MFCC (two-step process):
+   
+   Step 1: Generate the ERF scores file
+   ```
+   cd ./ModernTCN-classification-extension
+   sh ./scripts/erf_mfcc.sh
+   ```
+   
+   Step 2: Visualize the ERF from the generated scores
+   ```
+   cd ./ModernTCN-classification-extension
+   python erf/analyze_erf.py --source ./erf_scores.npy --heatmap_save ./erf/img/mtcn_kernel_size_block_idx.png
+   ```
+   Replace "kernel_size" and "block_idx" in the filename with the appropriate values (e.g., mtcn_51_0.png for kernel size 51, block index 0).
 
 **Note:** The official ModernTCN source code does not provide code to visualize ERF. We adapted our visualization code from [RepLKNet-pytorch](https://github.com/DingXiaoH/RepLKNet-pytorch) to analyze the ERF for Speech Commands MFCC features.
 
@@ -88,3 +97,5 @@ https://github.com/PatchTST/PatchTST
 https://github.com/thuml/Time-Series-Library
 https://github.com/facebookresearch/ConvNeXt
 https://github.com/MegEngine/RepLKNet
+https://github.com/dwromero/ckconv
+https://github.com/patrick-kidger/NeuralCDE
