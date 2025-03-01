@@ -1,28 +1,43 @@
-# ModernTCN (ICLR 2024 Spotlight)
-This is an official implementation of paper: [ModernTCN: A Modern Pure Convolution Structure for General Time Series Analysis](https://openreview.net/forum?id=vpJMJerXHU#).
+# ModernTCN Revisited: A Reproducibility Study with Extended Benchmarks
+
+This repository contains the code and results for our paper "ModernTCN Revisited: A Reproducibility Study with Extended Benchmarks", which evaluates the reproducibility of the ModernTCN model introduced in [ModernTCN: A Modern Pure Convolution Structure for General Time Series Analysis](https://openreview.net/forum?id=vpJMJerXHU#) (ICLR 2024 Spotlight).
 
 ## Our Paper
-Donghao Luo and Xue Wang. ModernTCN: A Modern Pure Convolution Structure for General Time Series Analysis. In International Conference on Learning Representations, 2024.
-[[Our paper in OpenReview]](https://openreview.net/forum?id=vpJMJerXHU#).
 
-We study the open question of how to better use convolution in time series analysis and we take a seldom-explored way in time series community to successfully bring convolution back to time series analysis.
+We present a comprehensive reproducibility analysis of ModernTCN, validating its experimental setup and performance claims while extending the evaluation to additional datasets and tasks. Our study:
 
-As a pure convolution structure, our ModernTCN achieves the consistent state-of-the-art performance on five mainstream time series analysis tasks (long-term and short-term forecasting, imputation, classification and anomaly detection) while maintaining the efficiency advantage of convolution-based models, therefore providing a better balance of efficiency and performance.
+1. Reproduces the original ModernTCN experiments across five time series analysis tasks
+2. Extends evaluation to include short-term forecasting on ETT datasets
+3. Compares ModernTCN with other convolutional models on Speech Commands classification
+4. Examines ModernTCN's performance on irregularly sampled data (PhysioNet)
+5. Conducts ablation studies on the ConvFFN2 component
+
+## Key Findings
+
+- ModernTCN achieves competitive performance across various time series tasks, though its state-of-the-art claims are tempered by sensitivity to experimental settings
+- Performance on Speech Commands lags behind other convolutional methods with larger effective receptive fields
+- ModernTCN exhibits less parameter efficiency compared to other methods
+- Ablation studies confirm the importance of the ConvFFN2 component in handling irregularly sampled data
 
 ## ModernTCN Block
 
 **ModernTCN block design:** 
-ModernTCN block can achieve larger ERF and better capture the cross-variable dependency, therefore being more suitable for time series analysis.
+ModernTCN block aims to achieve larger effective receptive fields (ERF) and better capture cross-variable dependency.
 
 |![image](fig/fig_block.png) | ![image](fig/fig_erf.png)
 |:--:|:--:|
 | *Figure 1. ModernTCN block design.* | *Figure 2. Visualization of ERF.* |
 
-## Main Results
+## Datasets
 
-**Main Results:** 
-Our ModernTCN achieves the consistent state-of-the-art performance on five mainstream time series analysis tasks with better efficiency.
-![Block Design](fig/fig_mainresult.png)
+Our study evaluates ModernTCN on multiple datasets across five tasks:
+
+- **Long-term forecasting**: ETT, Electricity, Traffic, Weather, Exchange, ILI
+- **Short-term forecasting**: ETTh1, ETTm1 (extended evaluation)
+- **Imputation**: ETT, Electricity, Weather
+- **Classification**: Speech Commands, PhysioNet (extended evaluation)
+- **Anomaly detection**: SMD, MSL, SMAP, SWaT, PSM
+
 ## Get Started
 
 1. Install Python 3.7 and necessary dependencies.
@@ -43,12 +58,12 @@ sh ./scripts/ETTh2.sh
 
 4. Short-term forecasting tasks.
 
-We provide the short-term forecasting experiment coding in `./ModernTCN-short-term` and experiment scripts can be found under the folder `./scripts`. Please run the following command:
+We provide the short-term forecasting experiment coding in `./ModernTCN-short-term` and experiment scripts can be found under the folder `./scripts`. To run the code on ETT, just run the following command:
 
 ```
 cd ./ModernTCN-short-term
 
-sh ./scripts/M4.sh
+sh ./scripts/ETT.sh
 ```
 
 5. Imputation tasks.
@@ -63,12 +78,12 @@ sh ./scripts/ETTh2.sh
 
 6. Classification tasks.
 
-We provide the classification experiment coding in `./ModernTCN-classification` and experiment scripts can be found under the folder `./scripts`. Please run the following command:
+We provide the classification experiment coding in `./ModernTCN-classification` and experiment scripts can be found under the folder `./scripts`. To run the code on Speech Commands, just run the following command:
 
 ```
 cd ./ModernTCN-classification
 
-sh ./scripts/classification.sh
+sh ./scripts/speech_commands.sh
 ```
 
 7. Anomaly detection tasks.
@@ -81,12 +96,9 @@ cd ./ModernTCN-detection
 sh ./scripts/SWaT.sh
 ```
 
-## Contact
-If you have any question or want to use the code, please contact [ldh21@mails.tsinghua.edu.cn](mailto:ldh21@mails.tsinghua.edu.cn).
-
 ## Citation
 
-If you find this repo useful, please cite our paper. 
+If you find this repo useful, please cite our paper and the original ModernTCN paper. 
 ```
 @inproceedings{
 donghao2024moderntcn,
@@ -102,13 +114,9 @@ url={https://openreview.net/forum?id=vpJMJerXHU}
 
 We appreciate the following github repos a lot for their valuable code base or datasets:
 
+https://github.com/luodhhh/ModernTCN
 https://github.com/ts-kim/RevIN
-
 https://github.com/PatchTST/PatchTST
-
 https://github.com/thuml/Time-Series-Library
-
 https://github.com/facebookresearch/ConvNeXt
-
 https://github.com/MegEngine/RepLKNet
-
