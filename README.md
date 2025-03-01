@@ -65,7 +65,32 @@ sh ./scripts/SWaT.sh
    cat ./scripts/erf_mfcc.sh
    
    # Select and run a specific command from the script, for example:
-   python -u run.py --model_id Speech_ERF_L51 --des Final_S_ks_3 --task_name classification --is_training 0 --root_path ./all_datasets/speech --data SpeechCommands --model ModernTCN --seq_len 161 --enc_in 20 --ffn_ratio 1 --patch_size 1 --patch_stride 1 --num_blocks 1 1 1 --large_size 51 49 47 --small_size 5 5 5 --dims 32 32 32 --head_dropout 0.0 --dropout 0.1 --class_dropout 0.1 --learning_rate 0.001 --batch_size 32 --train_epochs 100 --patience 10 --use_multi_scale False --mfcc True --itr 5 --compute_erf True --checkpoint_path /path/to/your/checkpoint.pth
+python -u run.py \
+    --model_id Speech_Final_L13 \
+    --des $experiment_name \
+    --task_name classification \
+    --is_training 0 \
+    --root_path ./all_datasets/speech \
+    --data SpeechCommands \
+    --model ModernTCN \
+    --seq_len $seq_len \
+    --enc_in $enc_in \
+    --ffn_ratio 1 \
+    --patch_size 1 \
+    --patch_stride 1 \
+    --num_blocks 1 1 1 \
+    --large_size 13 13 13 \
+    --small_size 5 5 5 \
+    --dims $dims $dims $dims \
+    --head_dropout 0.0 \
+    --dropout 0.0 \
+    --class_dropout 0.0 \
+    --use_multi_scale False \
+    --mfcc True \
+    --visualize_erf \
+    --erf_block_idx 0 \
+    --weights_path checkpoints/Speech_Final_L13_ModernTCN_SpeechCommands_ftM_sl161_pl0_dim32_nb1_lk13_sk5_ffr1_ps1_str1_multiFalse_mergedFalse_Final_S_ks_3_2 \
+    --erf_save_path erf_scores.npy --batch_size 1 --num_erf_samples 50
    ```
    
    Step 2: Visualize the ERF from the generated scores
