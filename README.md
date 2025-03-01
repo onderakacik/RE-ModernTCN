@@ -58,10 +58,14 @@ sh ./scripts/SWaT.sh
 
 8. ERF Visualization for Speech Commands MFCC (two-step process):
    
-   Step 1: Generate the ERF scores file
+   Step 1: First train a model using the speech_mfcc.sh script to generate checkpoints, then generate ERF scores
    ```
    cd ./ModernTCN-classification-extension
-   sh ./scripts/erf_mfcc.sh
+   # Open the erf_mfcc.sh script to view available commands for different model configurations
+   cat ./scripts/erf_mfcc.sh
+   
+   # Select and run a specific command from the script, for example:
+   python -u run.py --model_id Speech_ERF_L51 --des Final_S_ks_3 --task_name classification --is_training 0 --root_path ./all_datasets/speech --data SpeechCommands --model ModernTCN --seq_len 161 --enc_in 20 --ffn_ratio 1 --patch_size 1 --patch_stride 1 --num_blocks 1 1 1 --large_size 51 49 47 --small_size 5 5 5 --dims 32 32 32 --head_dropout 0.0 --dropout 0.1 --class_dropout 0.1 --learning_rate 0.001 --batch_size 32 --train_epochs 100 --patience 10 --use_multi_scale False --mfcc True --itr 5 --compute_erf True --checkpoint_path /path/to/your/checkpoint.pth
    ```
    
    Step 2: Visualize the ERF from the generated scores
@@ -75,7 +79,7 @@ sh ./scripts/SWaT.sh
 
 ## Citation
 
-Our paper is currently under review. If you find this repo useful, please cite the original ModernTCN paper:
+Our paper is currently under review. Below is the original ModernTCN paper:
 ```
 @inproceedings{
 donghao2024moderntcn,
