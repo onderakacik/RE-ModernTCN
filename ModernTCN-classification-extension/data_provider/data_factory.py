@@ -45,7 +45,7 @@ def speech_commands_collate_fn(data, max_len=None):
     labels = torch.stack(labels)
     masks = torch.stack(masks)
     
-    # Transpose to match PhysioNet format: [batch_size, seq_len, features]
+    # Transpose to match the format: [batch_size, seq_len, features]
     features = features.permute(0, 2, 1)
     
     # print("Final features shape:", features.shape)
@@ -103,6 +103,8 @@ def data_provider(args, flag):
             )
             
         print('load classification data...')
+        # print(f"shuffle_flag: {shuffle_flag}")
+        shuffle_flag = False # TODO: FOR ERF ANALYSIS, FIX THIS LATER
         
         # Use appropriate collate function based on dataset
         if args.data == 'PhysioNet':
@@ -113,7 +115,7 @@ def data_provider(args, flag):
             collate_function = collate_fn
         else:
             collate_function = None
-        
+
         data_loader = DataLoader(
             data_set,
             batch_size=batch_size,

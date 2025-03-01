@@ -288,16 +288,14 @@ class ModernTCN(nn.Module):
             self.head_class = nn.Linear(self.n_vars[0]*self.head_nf,self.class_num)
 
 
-    def forward_feature(self, x, te=None):
-
-        B,M,L=x.shape
-
+    def forward_feature(self, x, te=None, block_idx=None):
+        B, M, L = x.shape
         x = x.unsqueeze(-2)
 
         for i in range(self.num_stage):
             B, M, D, N = x.shape
             x = x.reshape(B * M, D, N)
-            if i==0:
+            if i == 0:
                 if self.patch_size != self.patch_stride:
                     # stem layer padding
                     pad_len = self.patch_size - self.patch_stride
@@ -311,6 +309,11 @@ class ModernTCN(nn.Module):
             _, D_, N_ = x.shape
             x = x.reshape(B, M, D_, N_)
             x = self.stages[i](x)
+            
+            # Return after processing the specified block
+            if block_idx is not None and i == block_idx:
+                return x
+            
         return x
 
     def classification(self,x):

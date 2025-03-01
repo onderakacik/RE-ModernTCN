@@ -1,6 +1,7 @@
 import argparse
 import os
 import torch
+import torch.optim as optim
 
 from exp.exp_classification import Exp_Classification
 import random
@@ -126,12 +127,25 @@ parser.add_argument('--anomaly_ratio', type=float, default=0.25, help='prior ano
 parser.add_argument('--class_dropout', type=float, default=0.05, help='classfication dropout')
 
 # Add these lines after the classification task arguments
-parser.add_argument('--mfcc', type=str2bool, default=True, 
-                    help='use MFCC features for speech commands (default: True)')
+parser.add_argument('--mfcc', type=str2bool, default=True, help='use MFCC features')
 parser.add_argument('--sr', type=int, default=16000, 
                     help='sample rate for audio (default: 16000)')
 parser.add_argument('--n_mfcc', type=int, default=20,
                     help='number of MFCC coefficients (default: 20)')
+
+# Add these new arguments in the parser section
+parser.add_argument('--visualize_erf', action='store_true', 
+                    help='visualize effective receptive field', default=False)
+parser.add_argument('--weights_path', type=str, default=None,
+                    help='path to model weights for ERF visualization')
+parser.add_argument('--num_erf_samples', type=int, default=1,
+                    help='number of samples to use for ERF visualization')
+parser.add_argument('--erf_save_path', type=str, default='erf_scores.npy',
+                    help='path to save ERF visualization results')
+
+# Add this argument to the parser
+parser.add_argument('--erf_block_idx', type=int, default=None,
+                    help='0-indexed block to visualize for ERF (default: None, visualizes after all blocks)')
 
 args = parser.parse_args()
 
@@ -152,18 +166,102 @@ if args.use_gpu and args.use_multi_gpu:
 
 print('Args in experiment:')
 print(args)
-if __name__ == '__main__':
 
-    #Exp = Exp_Main
+def visualize_erf(args, model):
+    print("Starting ERF visualization...")
+    model.eval()
+    
+    class AverageMeter:
+        def __init__(self):
+            self.reset()
+        def reset(self):
+            self.avg = 0
+            self.sum = 0
+            self.count = 0
+        def update(self, val):
+            self.sum = self.sum + val if self.count == 0 else np.add(self.sum, val)
+            self.count += 1
+            self.avg = self.sum / self.count
+    
+    meter = AverageMeter()
+    
+    from data_provider.data_factory import data_provider
+    dataset, data_loader = data_provider(args, flag='val')
+    
+    num_samples = min(args.num_erf_samples, len(dataset))
+    print(f"Processing {num_samples} samples for ERF visualization")
+    
+    for i, (x, _, _) in enumerate(data_loader):
+        if i >= num_samples:
+            break
+            
+        try:
+            # Permute the input data before feeding to the model
+            x = x.permute(0, 2, 1)
+            print(f"Input shape after permute: {x.shape}")
+            
+            x = x.cuda() if args.use_gpu else x
+            x.requires_grad = True
+            
+            # Forward pass through feature extractor with the block_idx parameter
+            features = model.model.forward_feature(x, block_idx=args.erf_block_idx)
+            print(f"Features shape: {features.shape}")
+            
+            # Get center point in sequence dimension (last dimension)
+            center_idx = features.size(3) // 2  # Using size(3) for the sequence dimension (4000)
+            
+            # Consider each position in the third dimension (32)
+            feature_grads = []
+            for pos in range(features.size(2)):  # iterates 0 to 31
+                # Select center point for this position
+                central_feature = features[..., pos, center_idx]
+                central_point = torch.nn.functional.relu(central_feature).sum()
+                
+                # Compute gradient
+                grad = torch.autograd.grad(central_point, x, create_graph=False, retain_graph=True)[0]
+                grad = torch.nn.functional.relu(grad)
+                feature_grads.append(grad)
+            
+            # Average gradients across all positions
+            grad = torch.stack(feature_grads).mean(0)
+            
+            # Sum across all dimensions except the sequence dimension
+            contribution_scores = grad.sum((0, 1)).detach().cpu().numpy()
+            print(f"Grad on cpu shape: {grad.detach().cpu().numpy().shape}")
+            print(f"Contribution scores shape: {contribution_scores.shape}")
+            print(f"Contribution scores: {contribution_scores}")
+            
+            # Normalize scores
+            contribution_scores = contribution_scores / (np.max(np.abs(contribution_scores)) + 1e-6)
+            
+            if not np.isnan(np.sum(contribution_scores)):
+                meter.update(contribution_scores)
+                print(f"Processed sample {i+1}/{num_samples}")
+            else:
+                print(f"Skipping sample {i+1} due to NaN values")
+                
+        except Exception as e:
+            print(f"Error processing sample {i+1}: {e}")
+            continue
+    
+    # Save the averaged ERF scores
+    np.save(args.erf_save_path, meter.avg)
+    print(f"ERF scores saved to {args.erf_save_path}")
+
+if __name__ == '__main__':
     if args.task_name == 'classification':
         Exp = Exp_Classification
     if args.large_size[0] < 13:
         args.small_kernel_merged = True
 
-    if args.is_training:
+    if args.visualize_erf:
+        # Initialize model and visualize ERF
+        exp = Exp(args)
+        visualize_erf(args, exp.model)
+    elif args.is_training:
         for ii in range(args.itr):
             # setting record of experiments
-            setting = '{}_{}_{}_ft{}_sl{}_pl{}_dim{}_nb{}_lk{}_sk{}_ffr{}_ps{}_str{}_multi{}_merged{}_{}_{}'.format(
+            setting = '{}_{}_{}_ft{}_sl{}_pl{}_dim{}_nb{}_lk{}_sk{}_ffr{}_ps{}_str{}_merged{}_{}_{}'.format(
                 args.model_id,
                 args.model,
                 args.data,
