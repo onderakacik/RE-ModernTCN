@@ -58,39 +58,18 @@ sh ./scripts/SWaT.sh
 
 8. ERF Visualization for Speech Commands MFCC (two-step process):
    
-   Step 1: First train a model using the speech_mfcc.sh script to generate checkpoints, then generate ERF scores
+   Step 1: First train a model using the speech_mfcc.sh script to generate checkpoints, then generate ERF scores. Choose one of the following commands based on kernel size:
    ```
    cd ./ModernTCN-classification-extension
-   # Open the erf_mfcc.sh script to view available commands for different model configurations
-   cat ./scripts/erf_mfcc.sh
    
-   # Select and run a specific command from the script, for example:
-python -u run.py \
-    --model_id Speech_Final_L13 \
-    --des $experiment_name \
-    --task_name classification \
-    --is_training 0 \
-    --root_path ./all_datasets/speech \
-    --data SpeechCommands \
-    --model ModernTCN \
-    --seq_len $seq_len \
-    --enc_in $enc_in \
-    --ffn_ratio 1 \
-    --patch_size 1 \
-    --patch_stride 1 \
-    --num_blocks 1 1 1 \
-    --large_size 13 13 13 \
-    --small_size 5 5 5 \
-    --dims $dims $dims $dims \
-    --head_dropout 0.0 \
-    --dropout 0.0 \
-    --class_dropout 0.0 \
-    --use_multi_scale False \
-    --mfcc True \
-    --visualize_erf \
-    --erf_block_idx 0 \
-    --weights_path checkpoints/Speech_Final_L13_ModernTCN_SpeechCommands_ftM_sl161_pl0_dim32_nb1_lk13_sk5_ffr1_ps1_str1_multiFalse_mergedFalse_Final_S_ks_3_2 \
-    --erf_save_path erf_scores.npy --batch_size 1 --num_erf_samples 50
+   # For kernel size 13
+   python -u run.py --model_id Speech_Final_L13 --des Final_S_ks_3 --task_name classification --is_training 0 --root_path ./all_datasets/speech --data SpeechCommands --model ModernTCN --seq_len 161 --enc_in 20 --ffn_ratio 1 --patch_size 1 --patch_stride 1 --num_blocks 1 1 1 --large_size 13 13 13 --small_size 5 5 5 --dims 32 32 32 --head_dropout 0.0 --dropout 0.0 --class_dropout 0.0 --use_multi_scale False --mfcc True --visualize_erf --erf_block_idx 0 --weights_path checkpoints/Speech_Final_L13_ModernTCN_SpeechCommands_ftM_sl161_pl0_dim32_nb1_lk13_sk5_ffr1_ps1_str1_multiFalse_mergedFalse_Final_S_ks_3_2 --erf_save_path erf_scores.npy --batch_size 1 --num_erf_samples 50
+   
+   # For kernel size 31
+   python -u run.py --model_id Speech_Final_L31 --des Final_S_ks_3 --task_name classification --is_training 0 --root_path ./all_datasets/speech --data SpeechCommands --model ModernTCN --seq_len 161 --enc_in 20 --ffn_ratio 1 --patch_size 1 --patch_stride 1 --num_blocks 1 1 1 --large_size 31 29 27 --small_size 5 5 5 --dims 32 32 32 --head_dropout 0.0 --dropout 0.0 --class_dropout 0.0 --use_multi_scale False --mfcc True --visualize_erf --erf_block_idx 0 --weights_path checkpoints/Speech_Final_L31_ModernTCN_SpeechCommands_ftM_sl161_pl0_dim32_nb1_lk31_sk5_ffr1_ps1_str1_multiFalse_mergedFalse_Final_S_ks_3_2 --erf_save_path erf_scores.npy --batch_size 1 --num_erf_samples 50
+   
+   # For kernel size 51
+   python -u run.py --model_id Speech_Final_L51 --des Final_S_ks_3 --task_name classification --is_training 0 --root_path ./all_datasets/speech --data SpeechCommands --model ModernTCN --seq_len 161 --enc_in 20 --ffn_ratio 1 --patch_size 1 --patch_stride 1 --num_blocks 1 1 1 --large_size 51 49 47 --small_size 5 5 5 --dims 32 32 32 --head_dropout 0.0 --dropout 0.0 --class_dropout 0.0 --use_multi_scale False --mfcc True --visualize_erf --erf_block_idx 0 --weights_path checkpoints/Speech_Final_L51_ModernTCN_SpeechCommands_ftM_sl161_pl0_dim32_nb1_lk51_sk5_ffr1_ps1_str1_multiFalse_mergedFalse_Final_S_ks_3_2 --erf_save_path erf_scores.npy --batch_size 1 --num_erf_samples 50
    ```
    
    Step 2: Visualize the ERF from the generated scores
@@ -120,11 +99,4 @@ url={https://openreview.net/forum?id=vpJMJerXHU}
 
 We appreciate the following github repos for their valuable code base or datasets:
 
-https://github.com/luodhhh/ModernTCN
-https://github.com/ts-kim/RevIN
-https://github.com/PatchTST/PatchTST
-https://github.com/thuml/Time-Series-Library
-https://github.com/facebookresearch/ConvNeXt
-https://github.com/MegEngine/RepLKNet
-https://github.com/dwromero/ckconv
-https://github.com/patrick-kidger/NeuralCDE
+https://github.com/luodhhh/ModernTCN https://github.com/ts-kim/RevIN https://github.com/PatchTST/PatchTST https://github.com/thuml/Time-Series-Library https://github.com/facebookresearch/ConvNeXt https://github.com/MegEngine/RepLKNet https://github.com/dwromero/ckconv https://github.com/patrick-kidger/NeuralCDE
