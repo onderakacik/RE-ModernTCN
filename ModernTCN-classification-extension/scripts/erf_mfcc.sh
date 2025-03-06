@@ -1,4 +1,9 @@
 # COMMANDS TO CREATE ERF SCORES FOR MFCC DATA, THEN RUN analyze_erf.py TO VISUALIZE
+experiment_name=Final_S_ks_3
+use_mfcc=True
+seq_len=161
+enc_in=20
+dims=32
 
 # KS 13, 3 blocks MFCC, for block 0. You can change the block index to visualize other blocks. It is 0-indexed.
 python -u run.py \
