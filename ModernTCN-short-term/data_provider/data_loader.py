@@ -390,7 +390,7 @@ class PSMSegLoader(Dataset):
         test_data = np.nan_to_num(test_data)
         self.test = self.scaler.transform(test_data)
         self.train = data
-        self.val = self.test
+        self.val = self.test # THIS CAUSES LEAKAGE OF TEST DATA
         self.test_labels = pd.read_csv(os.path.join(root_path, 'test_label.csv')).values[:, 1:]
         print("test:", self.test.shape)
         print("train:", self.train.shape)
