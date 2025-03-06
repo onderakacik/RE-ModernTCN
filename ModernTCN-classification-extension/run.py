@@ -217,6 +217,9 @@ def visualize_erf(args, model):
                 central_feature = features[..., pos, center_idx]
                 central_point = torch.nn.functional.relu(central_feature).sum()
                 
+                # clear gradients before computing new ones
+                model.zero_grad()
+                
                 # Compute gradient
                 grad = torch.autograd.grad(central_point, x, create_graph=False, retain_graph=True)[0]
                 grad = torch.nn.functional.relu(grad)
