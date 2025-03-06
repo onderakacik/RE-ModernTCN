@@ -124,35 +124,51 @@ class ReparamLargeKernelConv(nn.Module):
             self.__delattr__('small_conv')
 
 class Block(nn.Module):
-    def __init__(self, large_size, small_size, dmodel, dff, nvars, small_kernel_merged=False, drop=0.1):
+    def __init__(self, large_size, small_size, dmodel, dff, nvars, small_kernel_merged=False, drop=0.1, 
+                 use_bottleneck=False, bottleneck_size=16):
 
         super(Block, self).__init__()
         self.dw = ReparamLargeKernelConv(in_channels=nvars * dmodel, out_channels=nvars * dmodel,
                                          kernel_size=large_size, stride=1, groups=nvars * dmodel,
                                          small_kernel=small_size, small_kernel_merged=small_kernel_merged, nvars=nvars)
         self.norm = nn.BatchNorm1d(dmodel)
+        
+        self.use_bottleneck = use_bottleneck
+        self.bottleneck_size = bottleneck_size if use_bottleneck else nvars
+        
+        # Projection layers for bottleneck structure (only used if use_bottleneck=True)
+        if use_bottleneck:
+            self.project_down1 = nn.Conv1d(in_channels=nvars * dmodel, out_channels=self.bottleneck_size * dmodel, 
+                                          kernel_size=1, stride=1, padding=0)
+            self.project_up1 = nn.Conv1d(in_channels=self.bottleneck_size * dmodel, out_channels=nvars * dmodel, 
+                                        kernel_size=1, stride=1, padding=0)
+            
+            self.project_down2 = nn.Conv1d(in_channels=nvars * dmodel, out_channels=self.bottleneck_size * dmodel, 
+                                          kernel_size=1, stride=1, padding=0)
+            self.project_up2 = nn.Conv1d(in_channels=self.bottleneck_size * dmodel, out_channels=nvars * dmodel, 
+                                        kernel_size=1, stride=1, padding=0)
 
         #convffn1
-        self.ffn1pw1 = nn.Conv1d(in_channels=nvars * dmodel, out_channels=nvars * dff, kernel_size=1, stride=1,
-                                 padding=0, dilation=1, groups=nvars)
+        self.ffn1pw1 = nn.Conv1d(in_channels=self.bottleneck_size * dmodel, out_channels=self.bottleneck_size * dff, kernel_size=1, stride=1,
+                                 padding=0, dilation=1, groups=self.bottleneck_size)
         self.ffn1act = nn.GELU()
-        self.ffn1pw2 = nn.Conv1d(in_channels=nvars * dff, out_channels=nvars * dmodel, kernel_size=1, stride=1,
-                                 padding=0, dilation=1, groups=nvars)
+        self.ffn1pw2 = nn.Conv1d(in_channels=self.bottleneck_size * dff, out_channels=self.bottleneck_size * dmodel, kernel_size=1, stride=1,
+                                 padding=0, dilation=1, groups=self.bottleneck_size)
         self.ffn1drop1 = nn.Dropout(drop)
         self.ffn1drop2 = nn.Dropout(drop)
 
         #convffn2
-        self.ffn2pw1 = nn.Conv1d(in_channels=nvars * dmodel, out_channels=nvars * dff, kernel_size=1, stride=1,
+        self.ffn2pw1 = nn.Conv1d(in_channels=self.bottleneck_size * dmodel, out_channels=self.bottleneck_size * dff, kernel_size=1, stride=1,
                                  padding=0, dilation=1, groups=dmodel)
         self.ffn2act = nn.GELU()
-        self.ffn2pw2 = nn.Conv1d(in_channels=nvars * dff, out_channels=nvars * dmodel, kernel_size=1, stride=1,
+        self.ffn2pw2 = nn.Conv1d(in_channels=self.bottleneck_size * dff, out_channels=self.bottleneck_size * dmodel, kernel_size=1, stride=1,
                                  padding=0, dilation=1, groups=dmodel)
         self.ffn2drop1 = nn.Dropout(drop)
         self.ffn2drop2 = nn.Dropout(drop)
 
         self.ffn_ratio = dff//dmodel
+        
     def forward(self,x):
-
         input = x
         B, M, D, N = x.shape
         x = x.reshape(B,M*D,N)
@@ -162,17 +178,35 @@ class Block(nn.Module):
         x = self.norm(x)
         x = x.reshape(B, M, D, N)
         x = x.reshape(B, M * D, N)
-
+        
+        # Project down to bottleneck_size for ConvFFN1 if using bottleneck
+        if self.use_bottleneck:
+            x = self.project_down1(x)
+        
         x = self.ffn1drop1(self.ffn1pw1(x))
         x = self.ffn1act(x)
         x = self.ffn1drop2(self.ffn1pw2(x))
+        
+        # Project back up to original size if using bottleneck
+        if self.use_bottleneck:
+            x = self.project_up1(x)
+        
         x = x.reshape(B, M, D, N)
-
         x = x.permute(0, 2, 1, 3)
         x = x.reshape(B, D * M, N)
+        
+        # Project down to bottleneck_size for ConvFFN2 if using bottleneck
+        if self.use_bottleneck:
+            x = self.project_down2(x)
+        
         x = self.ffn2drop1(self.ffn2pw1(x))
         x = self.ffn2act(x)
         x = self.ffn2drop2(self.ffn2pw2(x))
+        
+        # Project back up to original size if using bottleneck
+        if self.use_bottleneck:
+            x = self.project_up2(x)
+        
         x = x.reshape(B, D, M, N)
         x = x.permute(0, 2, 1, 3)
 
@@ -182,29 +216,30 @@ class Block(nn.Module):
 
 class Stage(nn.Module):
     def __init__(self, ffn_ratio, num_blocks, large_size, small_size, dmodel, dw_model, nvars,
-                 small_kernel_merged=False, drop=0.1):
+                 small_kernel_merged=False, drop=0.1, use_bottleneck=False, bottleneck_size=16):
 
         super(Stage, self).__init__()
         d_ffn = dmodel * ffn_ratio
         blks = []
         for i in range(num_blocks):
-            blk = Block(large_size=large_size, small_size=small_size, dmodel=dmodel, dff=d_ffn, nvars=nvars, small_kernel_merged=small_kernel_merged, drop=drop)
+            blk = Block(large_size=large_size, small_size=small_size, dmodel=dmodel, dff=d_ffn, 
+                        nvars=nvars, small_kernel_merged=small_kernel_merged, drop=drop,
+                        use_bottleneck=use_bottleneck, bottleneck_size=bottleneck_size)
             blks.append(blk)
 
         self.blocks = nn.ModuleList(blks)
 
     def forward(self, x):
-
         for blk in self.blocks:
             x = blk(x)
-
         return x
 
 
 class ModernTCN(nn.Module):
     def __init__(self,patch_size,patch_stride, stem_ratio, downsample_ratio, ffn_ratio, num_blocks, large_size, small_size, dims, dw_dims,
                  nvars, small_kernel_merged=False, backbone_dropout=0.1, head_dropout=0.1, use_multi_scale=True, revin=True, affine=True,
-                 subtract_last=False, freq=None, seq_len=512, c_in=7, individual=False, target_window=96):
+                 subtract_last=False, freq=None, seq_len=512, c_in=7, individual=False, target_window=96, 
+                 use_bottleneck=False, bottleneck_size=16):
 
         super(ModernTCN, self).__init__()
 
@@ -251,8 +286,10 @@ class ModernTCN(nn.Module):
         self.num_stage = len(num_blocks)
         self.stages = nn.ModuleList()
         for stage_idx in range(self.num_stage):
-            layer = Stage(ffn_ratio, num_blocks[stage_idx], large_size[stage_idx], small_size[stage_idx], dmodel=dims[stage_idx],
-                          dw_model=dw_dims[stage_idx], nvars=nvars, small_kernel_merged=small_kernel_merged, drop=backbone_dropout)
+            layer = Stage(ffn_ratio, num_blocks[stage_idx], large_size[stage_idx], small_size[stage_idx], 
+                          dmodel=dims[stage_idx], dw_model=dw_dims[stage_idx], nvars=nvars, 
+                          small_kernel_merged=small_kernel_merged, drop=backbone_dropout,
+                          use_bottleneck=use_bottleneck, bottleneck_size=bottleneck_size)
             self.stages.append(layer)
 
         # Multi scale fusing (if needed)
@@ -377,21 +414,51 @@ class Model(nn.Module):
         self.patch_size = configs.patch_size
         self.patch_stride = configs.patch_stride
 
+        self.use_bottleneck = configs.use_bottleneck if hasattr(configs, 'use_bottleneck') else False
+        self.bottleneck_size = configs.bottleneck_size if hasattr(configs, 'bottleneck_size') else 16
 
         # decomp
         self.decomposition = configs.decomposition
         if self.decomposition:
             self.decomp_module = series_decomp(self.kernel_size)
-            self.model_res = ModernTCN(patch_size=self.patch_size,patch_stride=self.patch_stride,stem_ratio=self.stem_ratio, downsample_ratio=self.downsample_ratio, ffn_ratio=self.ffn_ratio, num_blocks=self.num_blocks, large_size=self.large_size, small_size=self.small_size, dims=self.dims, dw_dims=self.dw_dims,
-                 nvars=self.nvars, small_kernel_merged=self.small_kernel_merged, backbone_dropout=self.drop_backbone, head_dropout=self.drop_head, use_multi_scale=self.use_multi_scale, revin=self.revin, affine=self.affine,
-                 subtract_last=self.subtract_last, freq=self.freq, seq_len=self.seq_len, c_in=self.c_in, individual=self.individual, target_window=self.target_window)
-            self.model_trend = ModernTCN(patch_size=self.patch_size,patch_stride=self.patch_stride,stem_ratio=self.stem_ratio, downsample_ratio=self.downsample_ratio, ffn_ratio=self.ffn_ratio, num_blocks=self.num_blocks, large_size=self.large_size, small_size=self.small_size, dims=self.dims, dw_dims=self.dw_dims,
-                 nvars=self.nvars, small_kernel_merged=self.small_kernel_merged, backbone_dropout=self.drop_backbone, head_dropout=self.drop_head, use_multi_scale=self.use_multi_scale, revin=self.revin, affine=self.affine,
-                 subtract_last=self.subtract_last, freq=self.freq, seq_len=self.seq_len, c_in=self.c_in, individual=self.individual, target_window=self.target_window)
+            self.model_res = ModernTCN(patch_size=self.patch_size,patch_stride=self.patch_stride,
+                 stem_ratio=self.stem_ratio, downsample_ratio=self.downsample_ratio, 
+                 ffn_ratio=self.ffn_ratio, num_blocks=self.num_blocks, 
+                 large_size=self.large_size, small_size=self.small_size, 
+                 dims=self.dims, dw_dims=self.dw_dims, nvars=self.nvars, 
+                 small_kernel_merged=self.small_kernel_merged, 
+                 backbone_dropout=self.drop_backbone, head_dropout=self.drop_head, 
+                 use_multi_scale=self.use_multi_scale, revin=self.revin, 
+                 affine=self.affine, subtract_last=self.subtract_last, 
+                 freq=self.freq, seq_len=self.seq_len, c_in=self.c_in, 
+                 individual=self.individual, target_window=self.target_window,
+                 use_bottleneck=self.use_bottleneck, bottleneck_size=self.bottleneck_size)
+            
+            self.model_trend = ModernTCN(patch_size=self.patch_size,patch_stride=self.patch_stride,
+                 stem_ratio=self.stem_ratio, downsample_ratio=self.downsample_ratio, 
+                 ffn_ratio=self.ffn_ratio, num_blocks=self.num_blocks, 
+                 large_size=self.large_size, small_size=self.small_size, 
+                 dims=self.dims, dw_dims=self.dw_dims, nvars=self.nvars, 
+                 small_kernel_merged=self.small_kernel_merged, 
+                 backbone_dropout=self.drop_backbone, head_dropout=self.drop_head, 
+                 use_multi_scale=self.use_multi_scale, revin=self.revin, 
+                 affine=self.affine, subtract_last=self.subtract_last, 
+                 freq=self.freq, seq_len=self.seq_len, c_in=self.c_in, 
+                 individual=self.individual, target_window=self.target_window,
+                 use_bottleneck=self.use_bottleneck, bottleneck_size=self.bottleneck_size)
         else:
-            self.model = ModernTCN(patch_size=self.patch_size,patch_stride=self.patch_stride,stem_ratio=self.stem_ratio, downsample_ratio=self.downsample_ratio, ffn_ratio=self.ffn_ratio, num_blocks=self.num_blocks, large_size=self.large_size, small_size=self.small_size, dims=self.dims, dw_dims=self.dw_dims,
-                 nvars=self.nvars, small_kernel_merged=self.small_kernel_merged, backbone_dropout=self.drop_backbone, head_dropout=self.drop_head, use_multi_scale=self.use_multi_scale, revin=self.revin, affine=self.affine,
-                 subtract_last=self.subtract_last, freq=self.freq, seq_len=self.seq_len, c_in=self.c_in, individual=self.individual, target_window=self.target_window)
+            self.model = ModernTCN(patch_size=self.patch_size,patch_stride=self.patch_stride,
+                 stem_ratio=self.stem_ratio, downsample_ratio=self.downsample_ratio, 
+                 ffn_ratio=self.ffn_ratio, num_blocks=self.num_blocks, 
+                 large_size=self.large_size, small_size=self.small_size, 
+                 dims=self.dims, dw_dims=self.dw_dims, nvars=self.nvars, 
+                 small_kernel_merged=self.small_kernel_merged, 
+                 backbone_dropout=self.drop_backbone, head_dropout=self.drop_head, 
+                 use_multi_scale=self.use_multi_scale, revin=self.revin, 
+                 affine=self.affine, subtract_last=self.subtract_last, 
+                 freq=self.freq, seq_len=self.seq_len, c_in=self.c_in, 
+                 individual=self.individual, target_window=self.target_window,
+                 use_bottleneck=self.use_bottleneck, bottleneck_size=self.bottleneck_size)
 
     def forward(self, x, te=None):
 
