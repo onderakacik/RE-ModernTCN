@@ -107,10 +107,7 @@ def analyze_erf(args):
         data = data.reshape(1, -1)
     
     # Following equation (2) from the paper, adapted for 1D:
-    # A = log10(sum(P) + 1)
-    data = np.maximum(data, 0)  # Remove negative parts as per paper
-    # data = np.log10(data + 1)   # Apply log10 transform with +1 to avoid log(0)
-    
+    data = np.log10(data + 1)
     # Rescale to [0,1] for comparability
     data = data / np.max(data)
     
