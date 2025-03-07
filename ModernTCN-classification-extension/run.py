@@ -208,7 +208,7 @@ def visualize_erf(args, model):
             print(f"Features shape: {features.shape}")
             
             # Get center point in sequence dimension (last dimension)
-            center_idx = features.size(3) // 2  # Using size(3) for the sequence dimension (4000)
+            center_idx = features.size(-1) // 2  # Using the last dimension 
             
             # Select center point for all positions at once
             central_features = features[..., center_idx]
