@@ -210,32 +210,24 @@ def visualize_erf(args, model):
             # Get center point in sequence dimension (last dimension)
             center_idx = features.size(3) // 2  # Using size(3) for the sequence dimension (4000)
             
-            # Consider each position in the third dimension (32)
-            feature_grads = []
-            for pos in range(features.size(2)):  # iterates 0 to 31
-                # Select center point for this position
-                central_feature = features[..., pos, center_idx]
-                central_point = torch.nn.functional.relu(central_feature).sum()
-                
-                # clear gradients before computing new ones
-                model.zero_grad()
-                
-                # Compute gradient
-                grad = torch.autograd.grad(central_point, x, create_graph=False, retain_graph=True)[0]
-                grad = torch.nn.functional.relu(grad)
-                feature_grads.append(grad)
+            # Select center point for all positions at once
+            central_features = features[..., center_idx]
+            central_point = torch.nn.functional.relu(central_features).sum()
             
-            # Average gradients across all positions
-            grad = torch.stack(feature_grads).mean(0)
+            # Clear gradients before computing new ones
+            model.zero_grad()
+            
+            # Compute gradient
+            grad = torch.autograd.grad(central_point, x)[0]
+            grad = torch.nn.functional.relu(grad)
             
             # Sum across all dimensions except the sequence dimension
             contribution_scores = grad.sum((0, 1)).detach().cpu().numpy()
+
+
             print(f"Grad on cpu shape: {grad.detach().cpu().numpy().shape}")
             print(f"Contribution scores shape: {contribution_scores.shape}")
             print(f"Contribution scores: {contribution_scores}")
-            
-            # Normalize scores
-            contribution_scores = contribution_scores / (np.max(np.abs(contribution_scores)) + 1e-6)
             
             if not np.isnan(np.sum(contribution_scores)):
                 meter.update(contribution_scores)
