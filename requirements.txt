@@ -10,3 +10,7 @@ sktime
 sympy
 torch
 tqdm
+sktime
+torchaudio
+sox
+soundfile
