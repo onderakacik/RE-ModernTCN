@@ -23,7 +23,22 @@ class Exp_Anomaly_Detection(Exp_Basic):
         super(Exp_Anomaly_Detection, self).__init__(args)
 
     def _build_model(self):
-        model = self.model_dict[self.args.model].Model(self.args).float()
+        # Special case for Baseline model
+        if self.args.model == 'Baseline':
+            # Create a dummy model that doesn't do anything
+            class BaselineModel(nn.Module):
+                def __init__(self, args):
+                    super(BaselineModel, self).__init__()
+                    self.args = args
+                
+                def forward(self, x, *args, **kwargs):
+                    # Just return the input as is
+                    return x
+            
+            model = BaselineModel(self.args).float()
+        else:
+            # Original code for other models
+            model = self.model_dict[self.args.model].Model(self.args).float()
 
         if self.args.use_multi_gpu and self.args.use_gpu:
             model = nn.DataParallel(model, device_ids=self.args.device_ids)
@@ -62,6 +77,12 @@ class Exp_Anomaly_Detection(Exp_Basic):
         return total_loss
 
     def train(self, setting):
+        # Skip training for Baseline model
+        if self.args.model == 'Baseline':
+            print("Baseline model doesn't require training.")
+            return self.model
+            
+        # Original training code for other models
         train_data, train_loader = self._get_data(flag='train')
         vali_data, vali_loader = self._get_data(flag='val')
         test_data, test_loader = self._get_data(flag='test')
@@ -134,12 +155,56 @@ class Exp_Anomaly_Detection(Exp_Basic):
 
     def test(self, setting, test=0):
         test_data, test_loader = self._get_data(flag='test')
+        
+        # Special handling for Baseline model
+        if self.args.model == 'Baseline':
+            print("Running Baseline model with interval:", self.args.baseline_interval)
+            folder_path = './test_results/' + setting + '/'
+            if not os.path.exists(folder_path):
+                os.makedirs(folder_path)
+                
+            # Get test labels
+            test_labels = []
+            for i, (_, batch_y) in enumerate(test_loader):
+                test_labels.append(batch_y)
+            
+            test_labels = np.concatenate(test_labels, axis=0).reshape(-1)
+            gt = test_labels.astype(int)
+            
+            # Create periodic predictions based on specified interval
+            interval = self.args.baseline_interval
+            pred = np.zeros_like(gt)
+            pred[::interval] = 1
+            
+            print("pred:   ", pred.shape)
+            print("gt:     ", gt.shape)
+            
+            # Apply detection adjustment
+            gt, pred = adjustment(gt, pred)
+            
+            print("pred: ", pred.shape)
+            print("gt:   ", gt.shape)
+            
+            accuracy = accuracy_score(gt, pred)
+            precision, recall, f_score, support = precision_recall_fscore_support(gt, pred, average='binary')
+            print("Accuracy : {:0.4f}, Precision : {:0.4f}, Recall : {:0.4f}, F-score : {:0.4f} ".format(
+                accuracy, precision, recall, f_score))
+            
+            f = open("result_anomaly_detection.txt", 'a')
+            f.write(setting + "  \n")
+            f.write("Accuracy : {:0.4f}, Precision : {:0.4f}, Recall : {:0.4f}, F-score : {:0.4f} ".format(
+                accuracy, precision, recall, f_score))
+            f.write('\n')
+            f.write('\n')
+            f.close()
+            return
+            
+        # Original code for other models
         train_data, train_loader = self._get_data(flag='train')
         if test:
             print('loading model')
             self.model.load_state_dict(torch.load(os.path.join('./checkpoints/' + setting, 'checkpoint.pth')))
 
-        attens_energy = []
         folder_path = './test_results/' + setting + '/'
         if not os.path.exists(folder_path):
             os.makedirs(folder_path)
@@ -147,21 +212,25 @@ class Exp_Anomaly_Detection(Exp_Basic):
         self.model.eval()
         self.anomaly_criterion = nn.MSELoss(reduce=False)
 
-        # (1) stastic on the train set
+        # (1) Calculate scores on the train set only
+        train_energy = []
         with torch.no_grad():
-            for i, (batch_x, batch_y) in enumerate(train_loader):
+            for i, (batch_x, _) in enumerate(train_loader):
                 batch_x = batch_x.float().to(self.device)
                 # reconstruction
                 outputs = self.model(batch_x, None, None, None)
                 # criterion
                 score = torch.mean(self.anomaly_criterion(batch_x, outputs), dim=-1)
                 score = score.detach().cpu().numpy()
-                attens_energy.append(score)
+                train_energy.append(score)
 
-        attens_energy = np.concatenate(attens_energy, axis=0).reshape(-1)
-        train_energy = np.array(attens_energy)
+        train_energy = np.concatenate(train_energy, axis=0).reshape(-1)
+        
+        # (2) Find the threshold using only training data
+        threshold = np.percentile(train_energy, 100 - self.args.anomaly_ratio)
+        print("Threshold :", threshold)
 
-        # (2) find the threshold
+        # (3) Evaluate on the test set
         attens_energy = []
         test_labels = []
         for i, (batch_x, batch_y) in enumerate(test_loader):
@@ -176,20 +245,17 @@ class Exp_Anomaly_Detection(Exp_Basic):
 
         attens_energy = np.concatenate(attens_energy, axis=0).reshape(-1)
         test_energy = np.array(attens_energy)
-        combined_energy = np.concatenate([train_energy, test_energy], axis=0)
-        threshold = np.percentile(combined_energy, 100 - self.args.anomaly_ratio)
-        print("Threshold :", threshold)
-
-        # (3) evaluation on the test set
-        pred = (test_energy > threshold).astype(int)
         test_labels = np.concatenate(test_labels, axis=0).reshape(-1)
         test_labels = np.array(test_labels)
+        
+        # (4) Apply threshold to test data
+        pred = (test_energy > threshold).astype(int)
         gt = test_labels.astype(int)
 
         print("pred:   ", pred.shape)
         print("gt:     ", gt.shape)
 
-        # (4) detection adjustment
+        # (5) detection adjustment
         gt, pred = adjustment(gt, pred)
 
         pred = np.array(pred)

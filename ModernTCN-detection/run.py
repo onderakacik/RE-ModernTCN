@@ -15,7 +15,7 @@ parser.add_argument('--random_seed', type=int, default=2021, help='random seed')
 parser.add_argument('--is_training', type=int, required=True, default=1, help='status')
 parser.add_argument('--model_id', type=str, required=True, default='test', help='model id')
 parser.add_argument('--model', type=str, required=True, default='ModernTCN',
-                    help='model name, options: [ModernTCN]')
+                    help='model name, options: [ModernTCN, Baseline]')
 
 # data loader
 parser.add_argument('--data', type=str, required=True, default='ETTm1', help='dataset type')
@@ -122,8 +122,9 @@ parser.add_argument('--anomaly_ratio', type=float, default=0.25, help='prior ano
 # classfication task
 parser.add_argument('--class_dropout', type=float, default=0.05, help='classfication dropout')
 
-
-
+# baseline model parameters
+parser.add_argument('--baseline_interval', type=int, default=100, 
+                    help='interval for baseline model to mark points as anomalies')
 
 args = parser.parse_args()
 
@@ -153,33 +154,49 @@ if __name__ == '__main__':
     if args.is_training:
         for ii in range(args.itr):
             # setting record of experiments
-            setting = '{}_{}_{}_ft{}_dim{}_nb{}_lk{}_sk{}_ffr{}_ps{}_str{}_multi{}_merged{}_{}_{}'.format(
-                args.model_id,
-                args.model,
-                args.data,
-                args.features,
-                args.dims[0],
-                args.num_blocks[0],
-                args.large_size[0],
-                args.small_size[0],
-                args.ffn_ratio,
-                args.patch_size,
-                args.patch_stride,
-                args.use_multi_scale,
-                args.small_kernel_merged,
-                args.des,
-                ii)
+            if args.model == 'Baseline':
+                setting = '{}_{}_{}_interval{}_{}_{}'.format(
+                    args.model_id,
+                    args.model,
+                    args.data,
+                    args.baseline_interval,
+                    args.des,
+                    ii)
+            else:
+                setting = '{}_{}_{}_ft{}_dim{}_nb{}_lk{}_sk{}_ffr{}_ps{}_str{}_multi{}_merged{}_{}_{}'.format(
+                    args.model_id,
+                    args.model,
+                    args.data,
+                    args.features,
+                    args.dims[0],
+                    args.num_blocks[0],
+                    args.large_size[0],
+                    args.small_size[0],
+                    args.ffn_ratio,
+                    args.patch_size,
+                    args.patch_stride,
+                    args.use_multi_scale,
+                    args.small_kernel_merged,
+                    args.des,
+                    ii)
 
             exp = Exp(args)  # set experiments
-            print('>>>>>>>start training : {}>>>>>>>>>>>>>>>>>>>>>>>>>>'.format(setting))
-            exp.train(setting)
-
-            print('>>>>>>>testing : {}<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<'.format(setting))
-            exp.test(setting)
-
-            if args.do_predict:
-                print('>>>>>>>predicting : {}<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<'.format(setting))
-                exp.predict(setting, True)
+            
+            if args.model == 'Baseline':
+                # For Baseline, skip training and go directly to testing
+                print('>>>>>>>testing : {}<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<'.format(setting))
+                exp.test(setting)
+            else:
+                # Original flow for other models
+                print('>>>>>>>start training : {}>>>>>>>>>>>>>>>>>>>>>>>>>>'.format(setting))
+                exp.train(setting)
+                
+                print('>>>>>>>testing : {}<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<'.format(setting))
+                exp.test(setting)
+                
+                if args.do_predict:
+                    print('>>>>>>>predicting : {}<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<'.format(setting))
+                    exp.predict(setting, True)
 
             torch.cuda.empty_cache()
     else:
