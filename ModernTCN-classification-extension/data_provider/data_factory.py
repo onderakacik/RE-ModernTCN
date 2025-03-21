@@ -56,7 +56,7 @@ def data_provider(args, flag):
     Data = data_dict[args.data]
     timeenc = 0 if args.embed != 'timeF' else 1
 
-    if flag == 'test':
+    if flag.lower() == 'test':
         shuffle_flag = False
         # drop_last = True # This might effect the result so we set it to False
         drop_last = False
@@ -124,6 +124,7 @@ def data_provider(args, flag):
             drop_last=drop_last,
             collate_fn=lambda x: collate_function(x, max_len=args.seq_len)
         )
+        print(f"drop last bug {flag} {drop_last}")
         return data_set, data_loader
     else:
         if args.data == 'm4':
