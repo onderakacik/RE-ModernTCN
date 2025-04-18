@@ -38,7 +38,7 @@ def adjust_learning_rate(optimizer, scheduler, epoch, args, printout=True):
 
 
 class EarlyStopping:
-    def __init__(self, patience=7, verbose=False, delta=0):
+    def __init__(self, patience=7, verbose=False, delta=1e-5):
         self.patience = patience
         self.verbose = verbose
         self.counter = 0
