@@ -4,6 +4,7 @@ import torch.nn.functional as F
 import math
 from layers.RevIN import RevIN
 from models.ModernTCN_Layer import series_decomp, Flatten_Head
+from omegaconf import OmegaConf
 
 
 class LayerNorm(nn.Module):
@@ -210,21 +211,15 @@ class Stage(nn.Module):
 class ModernTCN(nn.Module):
     def __init__(self, task_name, patch_size, patch_stride, stem_ratio, downsample_ratio, ffn_ratio, num_blocks, large_size, small_size, dims, dw_dims,
                  nvars, small_kernel_merged=False, backbone_dropout=0.1, head_dropout=0.1, use_multi_scale=True, use_convffn2=True, revin=True, affine=True,
-                 subtract_last=False, freq=None, seq_len=512, c_in=7, individual=False, target_window=96, class_drop=0.,class_num = 10):
+                 subtract_last=False, freq=None, seq_len=512, c_in=7, individual=False, target_window=96, class_drop=0., class_num=10, 
+                 mix=False, conv_type='Conv1d', separable=True, causal=True, omega=700):
 
         super().__init__()
-        # print("\nModernTCN init:")
-        # print(f"configs.enc_in: {nvars}")
-        # print(f"configs.dims: {dims}")
-        # print(f"num_blocks: {num_blocks}")
-        
         self.nvars = nvars
-        # print(f"self.nvars: {self.nvars}")
-        
         self.task_name = task_name
         self.class_drop = class_drop
         self.class_num = class_num
-
+        self.mix = mix  # Control whether to mix variables or process them independently
 
         # RevIN
         self.revin = revin
@@ -232,10 +227,132 @@ class ModernTCN(nn.Module):
 
         # stem layer & down sampling layers
         self.downsample_layers = nn.ModuleList()
-        stem = nn.Sequential(
-            nn.Conv1d(1, dims[0], kernel_size=patch_size, stride=patch_stride),
-            nn.BatchNorm1d(dims[0])
-        )
+        
+        if conv_type.lower() == 'conv1d':
+            # Standard Conv1d implementation
+            if self.mix:
+                stem = nn.Sequential(
+                    nn.Conv1d(in_channels=nvars, out_channels=nvars * dims[0], kernel_size=patch_size, stride=patch_stride),
+                    nn.BatchNorm1d(nvars * dims[0])
+                )
+            else:
+                stem = nn.Sequential(
+                    nn.Conv1d(in_channels=1, out_channels=dims[0], kernel_size=patch_size, stride=patch_stride),
+                    nn.BatchNorm1d(dims[0])
+                )
+        else:
+            # Create configuration objects for FlexConv/CKConv
+            # Kernel configuration
+            kernel_cfg = OmegaConf.create({
+                'type': 'MAGNet',
+                'no_hidden': 32,
+                'no_layers': 3,
+                'omega_0': omega,
+                'input_scale': 0.0,
+                'bias': True,
+                'size': 'same',
+                'chang_initialize': True,
+                'norm': 'Identity',
+                'nonlinearity': 'Identity',
+                'init_spatial_value': 1.0,
+                'num_edges': -1,
+                'bottleneck_factor': -1,
+                'steerable': False,
+                'alpha': 6.0,
+                'beta': 1.0,
+                'causal': causal,
+                'data_dim': 1,
+            })
+            
+            # Convolution configuration
+            conv_cfg = OmegaConf.create({
+                'type': "FlexConv" if conv_type.lower() == 'flexconv' else "CKConv",
+                'causal': causal,
+                'use_fft': True,
+                'bias': True,
+                'padding': 'same',
+                'stride': patch_stride,
+                'cache': False,
+                'separable': separable,
+                'fft_conv': True,
+            })
+            
+            # Mask configuration (only for FlexConv)
+            mask_cfg = OmegaConf.create({
+                'type': 'gaussian',
+                'init_value': 0.075,
+                'threshold': 0.1,
+                'dynamic_cropping': True,
+                'temperature': 1.0,
+                'learn_mean': False,
+            })
+            
+            # Import the right convolution class
+            if conv_type.lower() == 'flexconv':
+                from models.common_layers.ckconv.nn.flexconv import FlexConv
+                
+                if self.mix:
+                    # Mix variables - apply FlexConv once on all variables
+                    conv_layer = FlexConv(
+                        in_channels=nvars,
+                        out_channels=nvars * dims[0],
+                        data_dim=1,
+                        kernel_cfg=kernel_cfg,
+                        conv_cfg=conv_cfg,
+                        mask_cfg=mask_cfg,
+                        separable=separable
+                    )
+                    stem = nn.Sequential(
+                        conv_layer,
+                        nn.BatchNorm1d(nvars * dims[0])
+                    )
+                else:
+                    # No mixing, but still use FlexConv
+                    conv_layer = FlexConv(
+                        in_channels=1,
+                        out_channels=dims[0],
+                        data_dim=1,
+                        kernel_cfg=kernel_cfg,
+                        conv_cfg=conv_cfg,
+                        mask_cfg=mask_cfg,
+                        separable=separable
+                    )
+                    stem = nn.Sequential(
+                        conv_layer,
+                        nn.BatchNorm1d(dims[0])
+                    )
+            else:  # Use CKConv
+                from models.common_layers.ckconv.nn.ckconv import CKConv
+                
+                if self.mix:
+                    # Mix variables - apply CKConv once on all variables
+                    conv_layer = CKConv(
+                        in_channels=nvars,
+                        out_channels=nvars * dims[0],
+                        data_dim=1,
+                        kernel_cfg=kernel_cfg,
+                        conv_cfg=conv_cfg,
+                        separable=separable
+                    )
+                    stem = nn.Sequential(
+                        conv_layer,
+                        nn.BatchNorm1d(nvars * dims[0])
+                    )
+                else:
+                    # No mixing, but still use CKConv
+                    conv_layer = CKConv(
+                        in_channels=1,
+                        out_channels=dims[0],
+                        data_dim=1,
+                        kernel_cfg=kernel_cfg,
+                        conv_cfg=conv_cfg,
+                        separable=separable
+                    )
+                    stem = nn.Sequential(
+                        conv_layer,
+                        nn.BatchNorm1d(dims[0])
+                    )
+
         self.downsample_layers.append(stem)
 
         self.num_stage = len(num_blocks)
@@ -290,30 +407,57 @@ class ModernTCN(nn.Module):
 
     def forward_feature(self, x, te=None, block_idx=None):
         B, M, L = x.shape
-        x = x.unsqueeze(-2)
-
-        for i in range(self.num_stage):
-            B, M, D, N = x.shape
-            x = x.reshape(B * M, D, N)
-            if i == 0:
-                if self.patch_size != self.patch_stride:
-                    # stem layer padding
-                    pad_len = self.patch_size - self.patch_stride
-                    pad = x[:,:,-1:].repeat(1,1,pad_len)
-                    x = torch.cat([x,pad],dim=-1)
-            else:
-                if N % self.downsample_ratio != 0:
-                    pad_len = self.downsample_ratio - (N % self.downsample_ratio)
-                    x = torch.cat([x, x[:, :, -pad_len:]],dim=-1)
-            x = self.downsample_layers[i](x)
-            _, D_, N_ = x.shape
-            x = x.reshape(B, M, D_, N_)
-            x = self.stages[i](x)
+        
+        if self.mix:
+            # Process with variable mixing
+            for i in range(self.num_stage):
+                if i == 0:
+                    x_reshaped = x  # B, M, L
+                    if self.patch_size != self.patch_stride:
+                        pad_len = self.patch_size - self.patch_stride
+                        pad = x_reshaped[:, :, -1:].repeat(1, 1, pad_len)
+                        x_reshaped = torch.cat([x_reshaped, pad], dim=-1)
+                    x = self.downsample_layers[i](x_reshaped)  # B, M*D, N
+                    _, D, N = x.shape
+                    x = x.reshape(B, M, D // M, N)  # B, M, D//M, N
+                else:
+                    B, M, D, N = x.shape
+                    x = x.reshape(B * M, D, N)
+                    if N % self.downsample_ratio != 0:
+                        pad_len = self.downsample_ratio - (N % self.downsample_ratio)
+                        x = torch.cat([x, x[:, :, -pad_len:]], dim=-1)
+                    x = self.downsample_layers[i](x)
+                    _, D_, N_ = x.shape
+                    x = x.reshape(B, M, D_, N_)
+                
+                x = self.stages[i](x)
+                
+                if block_idx is not None and i == block_idx:
+                    return x
+        else:
+            # Process variables independently (original method)
+            x = x.unsqueeze(-2)  # B, M, 1, L
             
-            # Return after processing the specified block
-            if block_idx is not None and i == block_idx:
-                return x
-            
+            for i in range(self.num_stage):
+                B, M, D, N = x.shape
+                x = x.reshape(B * M, D, N)
+                if i == 0:
+                    if self.patch_size != self.patch_stride:
+                        pad_len = self.patch_size - self.patch_stride
+                        pad = x[:, :, -1:].repeat(1, 1, pad_len)
+                        x = torch.cat([x, pad], dim=-1)
+                else:
+                    if N % self.downsample_ratio != 0:
+                        pad_len = self.downsample_ratio - (N % self.downsample_ratio)
+                        x = torch.cat([x, x[:, :, -pad_len:]], dim=-1)
+                x = self.downsample_layers[i](x)
+                _, D_, N_ = x.shape
+                x = x.reshape(B, M, D_, N_)
+                x = self.stages[i](x)
+                
+                if block_idx is not None and i == block_idx:
+                    return x
+        
         return x
 
     def classification(self,x):
@@ -382,6 +526,14 @@ class Model(nn.Module):
         # decomp
         self.decomposition = configs.decomposition
 
+        # variable indep. embedding or mix
+        self.mix = configs.mix
+
+        # Add parameters for the convolution type
+        self.conv_type = configs.conv_type if hasattr(configs, 'conv_type') else 'Conv1d'
+        self.separable = configs.separable if hasattr(configs, 'separable') else True
+        self.causal = configs.causal if hasattr(configs, 'causal') else True
+        self.omega = configs.omega if hasattr(configs, 'omega') else 700
 
         self.model = ModernTCN(task_name=self.task_name,patch_size=self.patch_size, patch_stride=self.patch_stride, stem_ratio=self.stem_ratio,
                            downsample_ratio=self.downsample_ratio, ffn_ratio=self.ffn_ratio, num_blocks=self.num_blocks,
@@ -392,7 +544,11 @@ class Model(nn.Module):
                            revin=self.revin, affine=self.affine,
                            subtract_last=self.subtract_last, freq=self.freq, seq_len=self.seq_len, c_in=self.c_in,
                            individual=self.individual, target_window=self.target_window,
-                            class_drop = self.class_dropout, class_num = self.class_num)
+                            class_drop = self.class_dropout, class_num = self.class_num, mix=self.mix,
+                            conv_type=self.conv_type,
+                            separable=self.separable,
+                            causal=self.causal,
+                            omega=self.omega)
 
     def forward(self, x, x_mark_enc, x_dec, x_mark_dec, mask=None):
         x = x.permute(0, 2, 1)

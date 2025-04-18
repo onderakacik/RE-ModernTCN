@@ -155,14 +155,14 @@ class Exp_Classification(Exp_Basic):
 
             if self.args.data == 'PhysioNet':
                 print(
-                    "Epoch: {0}, Steps: {1} | Train Loss: {2:.3f} Vali Loss: {3:.3f} Vali Acc: {4:.3f} Vali AUC: {5:.3f} Test Loss: {6:.3f} Test Acc: {7:.3f} Test AUC: {8:.3f}"
-                    .format(epoch + 1, train_steps, train_loss, vali_loss, val_metrics['accuracy'], val_metrics['roc_auc'], 
-                            test_loss, test_metrics['accuracy'], test_metrics['roc_auc']))
+                    "Epoch: {0}, Steps: {1} | Train Loss: {2:.3f} Vali Loss: {3:.3f} Vali Acc: {4:.3f} Vali AUC: {5:.3f} Vali Prec: {6:.3f} Test Loss: {7:.3f} Test Acc: {8:.3f} Test AUC: {9:.3f} Test Prec: {10:.3f}"
+                    .format(epoch + 1, train_steps, train_loss, vali_loss, val_metrics['accuracy'], val_metrics['roc_auc'], val_metrics['precision_macro'],
+                            test_loss, test_metrics['accuracy'], test_metrics['roc_auc'], test_metrics['precision_macro']))
             else:
                 print(
-                    "Epoch: {0}, Steps: {1} | Train Loss: {2:.3f} Vali Loss: {3:.3f} Vali Acc: {4:.3f} Test Loss: {5:.3f} Test Acc: {6:.3f}"
-                    .format(epoch + 1, train_steps, train_loss, vali_loss, val_metrics['accuracy'], 
-                            test_loss, test_metrics['accuracy']))
+                    "Epoch: {0}, Steps: {1} | Train Loss: {2:.3f} Vali Loss: {3:.3f} Vali Acc: {4:.3f} Vali Prec: {5:.3f} Test Loss: {6:.3f} Test Acc: {7:.3f} Test Prec: {8:.3f}"
+                    .format(epoch + 1, train_steps, train_loss, vali_loss, val_metrics['accuracy'], val_metrics['precision_macro'],
+                            test_loss, test_metrics['accuracy'], test_metrics['precision_macro']))
             
             # Pass the appropriate metric based on the task
             metric_to_track = val_metrics['roc_auc'] if self.args.data == 'PhysioNet' else val_metrics['accuracy']
@@ -211,10 +211,10 @@ class Exp_Classification(Exp_Basic):
         trues = trues.flatten().cpu().numpy()
         metrics = calculate_metrics(predictions, probs.cpu().numpy(), trues)
 
-
         print('Accuracy: {:.3f}'.format(metrics['accuracy']))
         print('ROC AUC: {:.3f}'.format(metrics['roc_auc']))
-        
+        print('Precision (macro): {:.3f}'.format(metrics['precision_macro']))
+
         experiment_name = self.args.des
         folder_path = './results_txt/'
         
@@ -224,6 +224,7 @@ class Exp_Classification(Exp_Basic):
         f.write(setting + "  \n")
         f.write('Accuracy: {:.3f}\n'.format(metrics['accuracy']))
         f.write('ROC AUC: {:.3f}\n'.format(metrics['roc_auc']))
+        f.write('Precision (macro): {:.3f}\n'.format(metrics['precision_macro']))
         f.write('\n')
         f.close()
         return

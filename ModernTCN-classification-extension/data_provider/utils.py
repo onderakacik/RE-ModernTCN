@@ -6,6 +6,33 @@ import torch
 import sklearn.model_selection
 import os
 
+
+def normalise_data_alternative(tensors, train_tensor):
+    """Normalize multiple tensors using statistics from train_tensor."""
+    out = []
+    for Xi in tensors:
+        normalized = []
+        for dim, train_dim in zip(Xi.unbind(dim=-1), train_tensor.unbind(dim=-1)):
+            train_nonan = train_dim.masked_select(~torch.isnan(train_dim))
+            mean = train_nonan.mean() # compute statistics using only training data.
+            std = train_nonan.std() # compute statistics using only training data.
+            normalized.append((dim - mean) / (std + 1e-5))
+        out.append(torch.stack(normalized, dim=-1))
+    return out
+
+def split_train_val(tensor_X, tensor_y):
+    """Split training data into train and validation sets."""
+    train_X, val_X, train_y, val_y = sklearn.model_selection.train_test_split(
+        tensor_X, tensor_y,
+        train_size=0.85,
+        random_state=0,
+        shuffle=True,
+        stratify=tensor_y
+    )
+    return (train_X, val_X), (train_y, val_y)
+
+
+
 def normalise_data(X, y):
     train_X, _, _ = split_data(X, y)
     out = []

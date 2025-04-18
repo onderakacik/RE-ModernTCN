@@ -147,6 +147,18 @@ parser.add_argument('--erf_save_path', type=str, default='erf_scores.npy',
 parser.add_argument('--erf_block_idx', type=int, default=None,
                     help='0-indexed block to visualize for ERF (default: None, visualizes after all blocks)')
 
+# Add this with your other ModernTCN arguments
+parser.add_argument('--mix', type=str2bool, default=False, 
+                    help='Whether to mix variables in the first downsample layer')
+parser.add_argument('--conv_type', type=str, default='Conv1d',
+                    help='Type of convolution to use: Conv1d, CKConv, or FlexConv')
+parser.add_argument('--separable', type=str2bool, default=True,
+                    help='Whether to use separable convolutions (for CKConv and FlexConv)')
+parser.add_argument('--causal', type=str2bool, default=True,
+                    help='Whether to use causal convolutions (for CKConv and FlexConv)')
+parser.add_argument('--omega', type=float, default=700,
+                    help='Omega parameter for MAGNet kernel (for CKConv and FlexConv)')
+
 args = parser.parse_args()
 
 # random seed

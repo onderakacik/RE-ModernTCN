@@ -14,8 +14,11 @@ import warnings
 import pathlib
 import csv
 import math
-from data_provider.utils import normalise_data, split_data, load_data, save_data
+from data_provider.utils import normalise_data, split_data, load_data, save_data, normalise_data_alternative, split_train_val
 import torchaudio
+import urllib.request
+import zipfile
+import collections
 
 warnings.filterwarnings('ignore')
 
@@ -1008,6 +1011,162 @@ class SpeechCommandsLoader(Dataset):
             X = tensors["train_X"]
             y = tensors["train_y"]
         elif flag == 'val':
+            X = tensors["val_X"]
+            y = tensors["val_y"]
+        elif flag == 'test':
+            X = tensors["test_X"]
+            y = tensors["test_y"]
+        else:
+            raise NotImplementedError(f"the flag {flag} is not implemented.")
+        
+        return X, y
+
+    def __getitem__(self, index):
+        x = self.data[index]  # Shape: (features, seq_len)
+        y = self.targets[index]  # Shape: (1,) - class label
+        padding_mask = torch.ones(x.shape[1])  # Shape: (seq_len,)
+        return x, y, padding_mask
+
+    def __len__(self):
+        return len(self.data)
+
+
+class CharacterTrajectoriesLoader(Dataset):
+    def __init__(self, root_path, flag='train', **kwargs):
+        self.root = pathlib.Path(root_path)
+        self.flag = flag
+        
+        # Define data location
+        data_loc = self.root / "processed_data"
+        
+        if os.path.exists(data_loc):
+            # Load preprocessed data
+            X, y = self.load_data(data_loc, flag)
+        else:
+            # Process and save data
+            train_X, val_X, test_X, train_y, val_y, test_y = self._process_data()
+            if not os.path.exists(data_loc):
+                os.makedirs(data_loc)
+            save_data(
+                data_loc,
+                train_X=train_X,
+                val_X=val_X,
+                test_X=test_X,
+                train_y=train_y,
+                val_y=val_y,
+                test_y=test_y,
+            )
+            # Select appropriate split
+            if flag == 'train':
+                X, y = train_X, train_y
+            elif flag == 'val':
+                X, y = val_X, val_y
+            else:  # test
+                X, y = test_X, test_y
+
+        self.data = X
+        self.targets = y
+        
+        # Get class names from unique target values
+        unique_targets = torch.unique(self.targets)
+        self.class_names = [str(i) for i in range(len(unique_targets))]
+        
+        # Set max sequence length based on data shape
+        self.max_seq_len = self.data.shape[-1]
+        
+        # Create feature DataFrame
+        n_features = self.data.shape[1]  # Get number of features (channels)
+        feature_names = [f'feature_{i}' for i in range(n_features)]
+        self.feature_df = pd.DataFrame(columns=feature_names)
+
+    def _process_data(self):
+        # Download data if not exists
+        self._download()
+        
+        # Load the raw data
+        data_loc = self.root / "CharacterTrajectories"
+        train_X, train_y = load_from_tsfile_to_dataframe(str(data_loc) + "_TRAIN.ts")
+        test_X, test_y = load_from_tsfile_to_dataframe(str(data_loc) + "_TEST.ts")
+        train_X, test_X = train_X.to_numpy(), test_X.to_numpy()
+
+        # Get max length from both sets
+        lengths = torch.tensor([len(Xi[0]) for Xi in np.concatenate((train_X, test_X))])
+        maxlen = lengths.max()
+
+        # Convert to torch tensors with padding
+        train_X = torch.stack([torch.stack([self._pad(channel, maxlen) for channel in batch], dim=0) for batch in train_X], dim=0)
+        test_X = torch.stack([torch.stack([self._pad(channel, maxlen) for channel in batch], dim=0) for batch in test_X], dim=0)
+
+        # Convert labels using OrderedDict to maintain consistent ordering
+        targets = collections.OrderedDict()
+        for yi in np.concatenate((train_y, test_y)):
+            if yi not in targets:
+                targets[yi] = len(targets)
+        train_y = torch.tensor([targets[yi] for yi in train_y])
+        test_y = torch.tensor([targets[yi] for yi in test_y])
+
+        # Split train into train/val first
+        (train_X, val_X), (train_y, val_y) = split_train_val(train_X, train_y)
+        
+        # Then normalize each set separately using train stats
+        normalized_data = normalise_data_alternative([train_X, val_X, test_X], train_X)
+        train_X = normalized_data[0]
+        val_X = normalized_data[1]
+        test_X = normalized_data[2]
+
+        # Print shapes for debugging
+        print(f"train_X shape: {train_X.shape}")
+        print(f"val_X shape: {val_X.shape}")
+        print(f"test_X shape: {test_X.shape}")
+        print(f"train_y shape: {train_y.shape}")
+        print(f"val_y shape: {val_y.shape}")
+        print(f"test_y shape: {test_y.shape}")
+
+        return train_X, val_X, test_X, train_y, val_y, test_y
+
+    def _download(self):
+        """Download the Character Trajectories dataset if not exists"""
+        if os.path.exists(self.root / "CharacterTrajectories_TRAIN.ts"):
+            return
+            
+        # Create directory if it doesn't exist
+        os.makedirs(self.root, exist_ok=True)
+        
+        # Download zip file
+        zip_path = self.root / "CharacterTrajectories.zip"
+        urllib.request.urlretrieve(
+            "https://www.timeseriesclassification.com/aeon-toolkit/CharacterTrajectories.zip",
+            str(zip_path)
+        )
+        
+        # Extract contents
+        with zipfile.ZipFile(zip_path, "r") as f:
+            f.extractall(str(self.root))
+            
+        # Clean up zip file
+        os.remove(zip_path)
+
+    @staticmethod
+    def _pad(x, length):
+        """Pad a sequence to the specified length"""
+        if isinstance(x, pd.Series):
+            x = x.values
+        if isinstance(x, np.ndarray):
+            x = torch.from_numpy(x)
+        if not isinstance(x, torch.Tensor):
+            x = torch.tensor(x)
+        x = x.float()
+        return torch.nn.functional.pad(x, (0, length - len(x)))
+
+    @staticmethod
+    def load_data(data_loc, flag):
+        """Load preprocessed data for the specified partition"""
+        tensors = load_data(data_loc)
+        flag = flag.lower()
+        if flag == 'train':
+            X = tensors["train_X"]
+            y = tensors["train_y"]
+        elif flag in ['val', 'valid', 'vali']:
             X = tensors["val_X"]
             y = tensors["val_y"]
         elif flag == 'test':
