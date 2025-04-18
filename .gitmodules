@@ -1,0 +1,3 @@
+[submodule "TSB-AD"]
+	path = TSB-AD
+	url = git@github.com:onderakacik/TSB-AD.git
