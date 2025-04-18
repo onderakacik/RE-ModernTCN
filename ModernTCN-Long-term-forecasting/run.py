@@ -116,6 +116,18 @@ parser.add_argument('--test_flop', action='store_true', default=False, help='See
 parser.add_argument('--use_bottleneck', type=str2bool, default=False, help='use bottleneck structure for low-rank approximation')
 parser.add_argument('--bottleneck_size', type=int, default=16, help='size of bottleneck dimension for low-rank approximation')
 
+# Add ERF visualization parameters
+parser.add_argument('--visualize_erf', action='store_true', 
+                    help='visualize effective receptive field', default=False)
+parser.add_argument('--weights_path', type=str, default=None,
+                    help='path to model weights for ERF visualization')
+parser.add_argument('--num_erf_samples', type=int, default=50,
+                    help='number of samples to use for ERF visualization')
+parser.add_argument('--erf_save_path', type=str, default='erf_scores.npy',
+                    help='path to save ERF visualization results')
+parser.add_argument('--erf_block_idx', type=int, default=None,
+                    help='0-indexed block to visualize for ERF (default: None, visualizes after all blocks)')
+
 args = parser.parse_args()
 
 
@@ -137,11 +149,102 @@ if args.use_gpu and args.use_multi_gpu:
 
 print('Args in experiment:')
 print(args)
+
+
+
+def visualize_erf(args, model):
+    print("Starting ERF visualization...")
+    model.eval()
+    
+    class AverageMeter:
+        def __init__(self):
+            self.reset()
+        def reset(self):
+            self.avg = 0
+            self.sum = 0
+            self.count = 0
+        def update(self, val):
+            self.sum = self.sum + val if self.count == 0 else np.add(self.sum, val)
+            self.count += 1
+            self.avg = self.sum / self.count
+    
+    meter = AverageMeter()
+    
+    from data_provider.data_factory import data_provider
+    dataset, data_loader = data_provider(args, flag='val')
+    
+    num_samples = min(args.num_erf_samples, len(dataset))
+    print(f"Processing {num_samples} samples for ERF visualization")
+    
+    for i, (x, *_) in enumerate(data_loader):
+        if i >= num_samples:
+            break
+            
+        try:
+            # Permute the input data before feeding to the model
+            x = x.permute(0, 2, 1)
+            x = x.float()
+            print(f"Input shape after permute: {x.shape}")
+            
+            x = x.cuda() if args.use_gpu else x
+            x.requires_grad = True
+            
+            # Forward pass through feature extractor with the block_idx parameter
+            features = model.model.forward_feature(x, block_idx=args.erf_block_idx)
+            print(f"Features shape: {features.shape}")
+            
+            # Get center point in sequence dimension (last dimension)
+            center_idx = features.size(-1) // 2  # Using the last dimension 
+            
+            # Select center point for all positions at once
+            central_features = features[..., center_idx]
+            central_point = torch.nn.functional.relu(central_features).sum()
+            
+            # Clear gradients before computing new ones
+            model.zero_grad()
+            
+            # Compute gradient
+            grad = torch.autograd.grad(central_point, x)[0]
+            grad = torch.nn.functional.relu(grad)
+            
+            # Sum across all dimensions except the sequence dimension
+            contribution_scores = grad.sum((0, 1)).detach().cpu().numpy()
+
+
+            print(f"Grad on cpu shape: {grad.detach().cpu().numpy().shape}")
+            print(f"Contribution scores shape: {contribution_scores.shape}")
+            print(f"Contribution scores: {contribution_scores}")
+            
+            if not np.isnan(np.sum(contribution_scores)):
+                meter.update(contribution_scores)
+                print(f"Processed sample {i+1}/{num_samples}")
+            else:
+                print(f"Skipping sample {i+1} due to NaN values")
+                
+        except Exception as e:
+            print(f"Error processing sample {i+1}: {e}")
+            continue
+    
+    # Save the averaged ERF scores
+    np.save(args.erf_save_path, meter.avg)
+    print(f"ERF scores saved to {args.erf_save_path}")
+
+
 if __name__ == '__main__':
 
     Exp = Exp_Main
+    
+    if args.large_size[0] < 13:
+        args.small_kernel_merged = True
 
-    if args.is_training:
+    if args.visualize_erf:
+        # Initialize model and visualize ERF
+        exp = Exp(args)
+        if args.weights_path is not None:
+            print(f"Loading model weights from {args.weights_path}")
+            exp.model.load_state_dict(torch.load(args.weights_path))
+        visualize_erf(args, exp.model)
+    elif args.is_training:
         for ii in range(args.itr):
             # setting record of experiments
             setting = '{}_{}_{}_ft{}_sl{}_pl{}_dim{}_nb{}_lk{}_sk{}_ffr{}_ps{}_str{}_multi{}_merged{}_{}_{}'.format(
