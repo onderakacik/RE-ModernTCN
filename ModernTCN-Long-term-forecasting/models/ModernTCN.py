@@ -335,12 +335,12 @@ class ModernTCN(nn.Module):
         _, _, _, N = x.shape
         return F.upsample(x, size=N, scale_factor=upsample_ratio, mode='bilinear')
 
-    def forward_feature(self, x, te=None):
+    def forward_feature(self, x, te=None, block_idx=None):
 
-        B,M,L=x.shape
+        B, M, L = x.shape
 
         x = x.unsqueeze(-2)
-        for i in range(self.num_stage):
+        for i in range(self.num_stage if block_idx is None else min(block_idx + 1, self.num_stage)):
             B, M, D, N = x.shape
             x = x.reshape(B * M, D, N)
             if i==0:
@@ -357,6 +357,7 @@ class ModernTCN(nn.Module):
             _, D_, N_ = x.shape
             x = x.reshape(B, M, D_, N_)
             x = self.stages[i](x)
+            
         return x
 
     def forward(self, x, te=None):

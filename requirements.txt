@@ -3,7 +3,7 @@ matplotlib
 numpy
 pandas
 patool
-reformer-pytorch
+# reformer-pytorch # TODO: can we remove ?
 scikit-learn
 scipy
 sktime

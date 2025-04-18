@@ -2,7 +2,7 @@ import numpy as np
 import torch
 import matplotlib.pyplot as plt
 import time
-from sklearn.metrics import roc_auc_score
+from sklearn.metrics import roc_auc_score, precision_score
 
 plt.switch_backend('agg')
 
@@ -45,7 +45,7 @@ def adjust_learning_rate(optimizer, scheduler, epoch, args, printout=True):
 
 
 class EarlyStopping:
-    def __init__(self, patience=7, verbose=False, delta=0, args=None):
+    def __init__(self, patience=7, verbose=False, delta=1e-5, args=None):
         self.patience = patience
         self.verbose = verbose
         self.counter = 0
@@ -154,15 +154,18 @@ def cal_accuracy(y_pred, y_true):
 
 def calculate_metrics(predictions, probabilities, labels):
     """
-    Calculate classification metrics including ROC AUC
+    Calculate classification metrics including ROC AUC and macro-average precision
     Args:
         predictions: numpy array of predicted class indices
         probabilities: numpy array of class probabilities
         labels: numpy array of true labels
     Returns:
-        dict: Dictionary containing accuracy and roc_auc scores
+        dict: Dictionary containing accuracy, roc_auc, and precision_macro scores
     """
     accuracy = np.mean(predictions == labels)
+    
+    # Calculate macro-average precision
+    precision_macro = precision_score(labels, predictions, average='macro')
     
     # For binary classification, use the probability of class 1
     # For multiclass, calculate ROC AUC in a one-vs-rest fashion
@@ -173,5 +176,6 @@ def calculate_metrics(predictions, probabilities, labels):
         
     return {
         'accuracy': accuracy,
-        'roc_auc': roc_auc
+        'roc_auc': roc_auc,
+        'precision_macro': precision_macro
     }
