@@ -203,7 +203,7 @@ class Exp_Imputation(Exp_Basic):
 
         mae, mse, rmse, mape, mspe = metric(preds[masks == 0], trues[masks == 0])
         print('mse:{}, mae:{}'.format(mse, mae))
-        f = open("result_imputation.txt", 'a')
+        f = open(f"result_{self.args.data}.txt", 'a')
         f.write(setting + "  \n")
         f.write('mse:{}, mae:{}'.format(mse, mae))
         f.write('\n')
