@@ -4,13 +4,14 @@ This is the official repository for the [reproducibility study](https://openrevi
 
 ## ModernTCN Revisited
 
-**Highlights:**
 
 ![image](fig/fig_erf_updated.png)
-* Visualization of ERF. ModernTCN vs. CCNN *
-* Conducting a comprehensive evaluation of ModernTCN by comparing it against a broader set of benchmarks and through a validated and extended set of experiments, identifying and addressing issues with data handling and experimental methodology in the original setup.
-* Innovating ModernTCN by integrating it with a global convolutional method, resulting in a superior model for irregularly sampled data and achieving state-of-the-art performance on the PhysioNet 2019 dataset (Reyna et al., 2019).
-* Validating the claims of ModernTCN’s ability to model long-range dependencies by visualizing its effective receptive field and comparing it to global convolutional methods.
+
+**Contributions:**
+
+* Comprehensive evaluation and extended benchmarks, addressing original setup issues.
+* Integration with global convolution for improved performance on irregular data (SOTA on PhysioNet 2019).
+* ERF visualization validating long-range dependency modeling.
 
 ## Get Started
 
