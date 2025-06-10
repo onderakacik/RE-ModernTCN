@@ -7,8 +7,7 @@ This is the official repository for the [reproducibility study](https://openrevi
 **Highlights:** 
 
 ![image](fig/fig_erf_updated.png)
-|:--:|:--:|
- * Visualization of ERF. ModernTCN vs. CCNN* |
+ * Visualization of ERF. ModernTCN vs. CCNN * 
 
 ## Get Started
 
