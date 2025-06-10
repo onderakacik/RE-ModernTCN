@@ -2,14 +2,14 @@
 
 This repository contains the code for our paper "ModernTCN Revisited: A Reproducibility Study with Extended Benchmarks", which evaluates the reproducibility of [ModernTCN: A Modern Pure Convolution Structure for General Time Series Analysis](https://openreview.net/forum?id=vpJMJerXHU#) (ICLR 2024 Spotlight).
 
-## ModernTCN Block
+## H
 
-**ModernTCN block design:** 
-Images below are from the original ModernTCN paper.
+**Highlights:** 
 
-|![image](fig/fig_block.png)  |  ![image](fig/fig_erf_updated.png)
+
+![image](fig/fig_erf_updated.png)
 |:--:|:--:|
-| *Figure 1. ModernTCN block design.* | *Figure 2. Visualization of ERF.* |
+ * Visualization of ERF. ModernTCN vs. CCNN* |
 
 ## Get Started
 
