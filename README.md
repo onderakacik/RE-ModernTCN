@@ -4,9 +4,9 @@ This is the official repository for the [reproducibility study](https://openrevi
 
 ## ModernTCN Revisited
 
-![image](fig/fig_erf_updated.png){ width=80% }
+![image](fig/fig_erf_updated.png)
 
-![image](fig/pnet.png){ width=80% }
+![image](fig/pnet.png)
 
 
 
