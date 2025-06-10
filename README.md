@@ -4,13 +4,10 @@ This is the official repository for the [reproducibility study](https://openrevi
 
 ## ModernTCN Revisited
 
-<p align="center">
-  ![image](fig/fig_erf_updated.png)
-</p>
+![image](fig/fig_erf_updated.png){ width=80% }
 
-<p align="center">
-  ![image](fig/pnet.png)
-</p>
+![image](fig/pnet.png){ width=80% }
+
 
 
 
