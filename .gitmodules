@@ -1,3 +1,6 @@
 [submodule "TSB-AD"]
 	path = TSB-AD
 	url = git@github.com:onderakacik/TSB-AD.git
+[submodule "tirex"]
+	path = tirex
+	url = git@github.com:onderakacik/tirex.git
