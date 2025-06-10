@@ -7,7 +7,7 @@ This repository contains the code for our paper "ModernTCN Revisited: A Reproduc
 **ModernTCN block design:** 
 Images below are from the original ModernTCN paper.
 
-|![image](fig/fig_block.png)  |  ![image](fig/fig_erf.png)
+|![image](fig/fig_block.png)  |  
 |:--:|:--:|
 | *Figure 1. ModernTCN block design.* | *Figure 2. Visualization of ERF.* |
 
