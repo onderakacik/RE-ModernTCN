@@ -13,7 +13,7 @@ Images below are from the original ModernTCN paper.
 
 ## Get Started
 
-1. Install Python 3.7 and necessary dependencies.
+1. Install Python 3.12.7 and necessary dependencies.
 ```
 pip install -r requirements.txt
 ```
