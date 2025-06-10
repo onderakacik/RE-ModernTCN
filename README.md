@@ -2,12 +2,15 @@
 
 This is the official repository for the [reproducibility study](https://openreview.net/forum?id=R20kKdWmVZ) (TMLR) of [ModernTCN: A Modern Pure Convolution Structure for General Time Series Analysis](https://openreview.net/forum?id=vpJMJerXHU#) (ICLR 2024 Spotlight).
 
-## Highlights
+## ModernTCN Revisited
 
-**Highlights:** 
+**Highlights:**
 
 ![image](fig/fig_erf_updated.png)
- * Visualization of ERF. ModernTCN vs. CCNN * 
+* Visualization of ERF. ModernTCN vs. CCNN *
+* Conducting a comprehensive evaluation of ModernTCN by comparing it against a broader set of benchmarks and through a validated and extended set of experiments, identifying and addressing issues with data handling and experimental methodology in the original setup.
+* Innovating ModernTCN by integrating it with a global convolutional method, resulting in a superior model for irregularly sampled data and achieving state-of-the-art performance on the PhysioNet 2019 dataset (Reyna et al., 2019).
+* Validating the claims of ModernTCN’s ability to model long-range dependencies by visualizing its effective receptive field and comparing it to global convolutional methods.
 
 ## Get Started
 
