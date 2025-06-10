@@ -1,11 +1,10 @@
-# ModernTCN Revisited: A Reproducibility Study with Extended Benchmarks
+# [ModernTCN Revisited: A Reproducibility Study with Extended Benchmarks and Architectural Improvement](https://openreview.net/forum?id=R20kKdWmVZ)
 
-This repository contains the code for our paper "ModernTCN Revisited: A Reproducibility Study with Extended Benchmarks", which evaluates the reproducibility of [ModernTCN: A Modern Pure Convolution Structure for General Time Series Analysis](https://openreview.net/forum?id=vpJMJerXHU#) (ICLR 2024 Spotlight).
+This is the official repository for the [reproducibility study](https://openreview.net/forum?id=R20kKdWmVZ) of [ModernTCN: A Modern Pure Convolution Structure for General Time Series Analysis](https://openreview.net/forum?id=vpJMJerXHU#) (ICLR 2024 Spotlight).
 
-## H
+## Highlights
 
 **Highlights:** 
-
 
 ![image](fig/fig_erf_updated.png)
 |:--:|:--:|
