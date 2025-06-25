@@ -89,15 +89,16 @@ sh ./scripts/SWaT.sh
 
 ## Citation
 
-Our paper is currently under review. Below is the original ModernTCN paper:
 ```
-@inproceedings{
-donghao2024moderntcn,
-title={Modern{TCN}: A Modern Pure Convolution Structure for General Time Series Analysis},
-author={Luo donghao and wang xue},
-booktitle={The Twelfth International Conference on Learning Representations},
-year={2024},
-url={https://openreview.net/forum?id=vpJMJerXHU}
+@article{
+akacik2025moderntcn,
+title={Modern{TCN} Revisited: A Critical Look at the Experimental Setup in General Time Series Analysis},
+author={{\"O}nder Akacik and Mark Hoogendoorn},
+journal={Transactions on Machine Learning Research},
+issn={2835-8856},
+year={2025},
+url={https://openreview.net/forum?id=R20kKdWmVZ},
+note={}
 }
 ```
 
